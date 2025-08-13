@@ -144,4 +144,7 @@ refer to the article: ["Watts Up with Dynamic Power System Simulations"](https:/
   - `solvers`: Numerical solvers for integration.
 
 ## Contact
-[Contact Information](https://www.ees.tf.fau.de/person/georg-kordowich/)
+[Contact Information](https://www.ees.tf.fau.de/faudir/georg-kordowich/)
+
+## Citation
+If this code is helpful for your research, please cite this [paper](https://ieeexplore.ieee.org/document/10926572)
