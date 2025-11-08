@@ -34,9 +34,12 @@ jobs:
           pip install poetry==2.1.4
           poetry install
 
-      - name: Run pre-commit checks
+      - name: Run code checks
         run: |
-          poetry run pre-commit run --all-files
+          poetry check
+          poetry run black --diff --check src/diffpssi/ tests/
+          poetry run isort --check-only src/diffpssi tests
+          poetry run pydocstyle diffpssi tests
   
       - name: Run tests
         run: |
