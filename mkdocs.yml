@@ -1,0 +1,45 @@
+site_name: diffpssi
+site_description: 
+site_author: Georg Kordowich, Maximilian Köhler
+
+repo_url: https://github.com/maxikoehler/diffpssi
+edit_uri: edit/main/docs
+
+nav:
+  - General:
+    - Quickstart: general/index.md
+    - Installation: general/installation.md
+    - Usage and Examples: general/usage.md
+    - Contributing: general/CONTRIBUTING.md
+    - About: general/about.md
+  - Documentation:
+    - Power-Sim-Lib: 
+      - Simulator: documentation/simulator.md
+      - Static Models: documentation/static_models.md
+      - Transformers: documentation/transformers.md
+      - Load Flow: documentation/load_flow.md
+      - Solvers: documentation/solvers.md
+
+theme: readthedocs
+
+extra:
+  community:
+    community_button_headline: Any questions left?
+    community_button_text: Create an issue
+    community_button_default_href: https://github.com/maxikoehler/diffpssi/issues
+  links:
+    - name: code
+      value: https://github.com/maxikoehler/diffpssi
+    - name: issues
+      value: https://github.com/maxikoehler/diffpssi/issues
+
+plugins:
+  - mkdocstrings
+  - search
+
+# markdown_extensions:
+#   - pymdownx.highligt:
+#     guess_lang: true
+#   - pymdownx.snippets:
+#     base_path: ./docs
+#     check_paths : true
