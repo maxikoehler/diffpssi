@@ -97,7 +97,9 @@ def main(parallel_sims=100):
     ]
 
     original_data = np.load(
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "original_data.npy")
+        os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "data", "original_data.npy"
+        )
     )
     orig_tensor = torch.tensor(original_data) * torch.ones(
         (parallel_sims,) + original_data.shape
