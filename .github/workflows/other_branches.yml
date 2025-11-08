@@ -1,0 +1,53 @@
+name: Only Test Code
+
+on:
+  push:
+    branches:
+      - develop
+      - project-init
+      - feature/*
+      - bugfix/*
+      - hotfix/*
+  pull_request:
+    branches:
+      - develop
+
+jobs:
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ['3.11', '3.12', '3.13']
+
+      - name: Install dependencies
+        run: |
+          poetry install
+
+      - name: Run pre-commit checks
+        run: |
+          poetry run pre-commit run --files src/diffpssi/* tests/*
+  
+  test:
+    runs-on: ubuntu-latest
+    needs: pre-commit
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ['3.11', '3.12', '3.13']
+
+      - name: Install dependencies
+        run: |
+          poetry install
+
+      - name: Run tests
+        run: |
+          poetry run pytest tests/*

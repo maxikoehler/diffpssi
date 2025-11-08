@@ -1,3 +1,5 @@
+# General project related exclusions
+.DS_Store
 .idea
 *.pyc
 /dist
@@ -7,3 +9,14 @@
 /examples/models/ieee_9bus/data/plots
 /examples/models/ibb_model/data/plots
 /examples/models/k2a_manual/data/plots
+
+# Any Python virtual environment and developing stuff
+.vscode/
+.mypy_cache/
+.pytest_cache/
+__pycache__/
+.tox
+.venv
+venv
+env
+.github/copilot-instructions.md

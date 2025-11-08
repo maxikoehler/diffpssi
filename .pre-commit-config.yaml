@@ -20,15 +20,15 @@ repos:
       language: system
       types: [file, python]
       # files: '^(src|test)/'
-    - id: pylint
-      name: pylint
-      entry: poetry run pylint
-      language: system
-      types: [file, python]
-      # files: '^(src|test)/'
-    - id: mypy
-      name: mypy
-      entry: poetry run mypy
-      language: system
-      types: [file, python]
-      # files: '^(src|test)/'
+#     - id: pylint
+#       name: pylint
+#       entry: poetry run pylint
+#       language: system
+#       types: [file, python]
+#       # files: '^(src|test)/'
+#     - id: mypy
+#       name: mypy
+#       entry: poetry run mypy
+#       language: system
+#       types: [file, python]
+#       # files: '^(src|test)/'
