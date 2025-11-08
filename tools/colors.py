@@ -1,6 +1,5 @@
-"""
-Some muted colors for plotting.
-"""
+"""Some muted colors for plotting."""
+
 ees_blue = [0 / 255, 112 / 255, 192 / 255]
 ees_yellow = [213 / 255, 223 / 255, 0 / 255]
 ees_green = [0 / 255, 166 / 255, 74 / 255]

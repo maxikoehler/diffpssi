@@ -1,27 +1,33 @@
-"""
-Unit tests for the simulation examples in the examples folder.
-"""
+"""Unit tests for the simulation examples in the examples folder."""
+
 import os
 import unittest
+from unittest.mock import patch
+
 import numpy as np
 
 
-def set_env_vars():
-    """
-    Set the environment variables that are used to force the use of the heun integrator, the use of torch, and the
-    number of parallel simulations.
-    """
-    # set environment variable that forces the simulator to always use the heun integrator
-    os.environ['DIFFPSSI_FORCE_INTEGRATOR'] = 'heun'
-    os.environ['DIFFPSSI_FORCE_SIM_BACKEND'] = 'torch'
-    os.environ['DIFFPSSI_FORCE_OPT_ITERS'] = '1'
-    os.environ['DIFFPSSI_FORCE_PARALLEL_SIMS'] = '2'
-
-
 class TestOptRunAbility(unittest.TestCase):
+    """Test that the optimization examples can run without error."""
+
+    @staticmethod
+    def set_env_vars():
+        """Set the environment variables required for optimization.
+
+        This forces the use of the heun integrator, the use of torch, and the
+        number of parallel simulations.
+        """
+        # set environment variable that forces the simulator to always use the heun integrator
+        os.environ["DIFFPSSI_FORCE_INTEGRATOR"] = "heun"
+        os.environ["DIFFPSSI_FORCE_SIM_BACKEND"] = "torch"
+        os.environ["DIFFPSSI_FORCE_OPT_ITERS"] = "1"
+        os.environ["DIFFPSSI_FORCE_PARALLEL_SIMS"] = "2"
+
+        print("Set environment variables for optimization tests.")
 
     def test_ibb_opt(self):
-        set_env_vars()
+        """Optimization test for the ibb model."""
+        TestOptRunAbility.set_env_vars()
         import examples.models.ibb_model.ibb_opt as ibb_opt
 
         # get the path of the ibb_sim.py file
@@ -30,10 +36,12 @@ class TestOptRunAbility(unittest.TestCase):
         os.chdir(os.path.dirname(file_path))
 
         # Run the optimization
-        ibb_opt.main(parallel_sims=2)
+        with patch("matplotlib.pyplot.savefig"):
+            ibb_opt.main(parallel_sims=2)
 
     def test_ieee_9bus_opt(self):
-        set_env_vars()
+        """Optimization test for the ieee_9bus model."""
+        TestOptRunAbility.set_env_vars()
         import examples.models.ieee_9bus.ieee_9bus_opt as ieee_9bus_opt
 
         # get the path of the ibb_sim.py file
@@ -45,8 +53,10 @@ class TestOptRunAbility(unittest.TestCase):
         ieee_9bus_opt.main(parallel_sims=2)
 
     def test_k2a_opt(self):
+        """Optimization test for the k2a model."""
         import examples.models.k2a.k2a_opt as k2a_opt
 
+        TestOptRunAbility.set_env_vars()
         # get the path of the ibb_sim.py file
         file_path = k2a_opt.__file__
 

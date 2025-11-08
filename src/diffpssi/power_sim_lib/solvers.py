@@ -1,7 +1,8 @@
+"""Contains all solvers for the power system simulation.
+
+The solvers are used to integrate the differential equations of the power system simulation. More solvers can be added here.
 """
-File contains all the solvers for the power system simulation. The solvers are used to integrate the differential
-equations of the power system simulation. More solvers can be added here
-"""
+
 from src.diffpssi.power_sim_lib.backend import *
 
 
@@ -18,20 +19,20 @@ class Euler(object):
     """
 
     def __init__(self):
-        """
-        Initializes the Euler solver object.
-        """
+        """Initialize the Euler solver object."""
         self.x_0_store = {}
 
     def step(self, ps_sim):
         """
-        Executes one step of the Euler integration method for the power system simulation.
+        Execute one step of the Euler integration method for the power system simulation.
 
         Args:
             ps_sim (PowerSystemSimulation): The power system simulation object to be integrated.
         """
         # calculate bus voltages
-        voltages = torch.matmul(ps_sim.inverse_dyn_admittance_matrix(), ps_sim.current_injections())
+        voltages = torch.matmul(
+            ps_sim.inverse_dyn_admittance_matrix(), ps_sim.current_injections()
+        )
         for i, bus in enumerate(ps_sim.busses):
             bus.update_voltages(voltages[:, i])
 
@@ -46,9 +47,7 @@ class Euler(object):
                 self.x_0_store[model_id] = x_1
 
     def reset(self):
-        """
-        Resets the Euler solver object.
-        """
+        """Reset the Euler solver object."""
         self.x_0_store = {}
 
 
@@ -66,21 +65,21 @@ class Heun(object):
     """
 
     def __init__(self):
-        """
-        Initializes the Heun solver object.
-        """
+        """Initialize the Heun solver object."""
         self.x_0_store = {}
         self.dxdt_0_store = {}
 
     def step(self, ps_sim):
         """
-        Executes one step of the Heun integration method for the power system simulation.
+        Execute one step of the Heun integration method for the power system simulation.
 
         Args:
             ps_sim (PowerSystemSimulation): The power system simulation object to be integrated.
         """
         # calculate bus voltages
-        voltages = torch.matmul(ps_sim.inverse_dyn_admittance_matrix(), ps_sim.current_injections())
+        voltages = torch.matmul(
+            ps_sim.inverse_dyn_admittance_matrix(), ps_sim.current_injections()
+        )
         for i, bus in enumerate(ps_sim.busses):
             bus.update_voltages(voltages[:, i])
             for model in bus.models:
@@ -99,7 +98,9 @@ class Heun(object):
                     # This happens for models that do not have a differential function
                     pass
 
-        voltages = torch.matmul(ps_sim.inverse_dyn_admittance_matrix(), ps_sim.current_injections())
+        voltages = torch.matmul(
+            ps_sim.inverse_dyn_admittance_matrix(), ps_sim.current_injections()
+        )
         for i, bus in enumerate(ps_sim.busses):
             bus.update_voltages(voltages[:, i])
             for model in bus.models:
@@ -117,16 +118,14 @@ class Heun(object):
                     pass
 
     def reset(self):
-        """
-        Resets the Heun solver object.
-        """
+        """Reset the Heun solver object."""
         self.x_0_store = {}
         self.dxdt_0_store = {}
 
 
 class RK4(object):
     """
-    Implements the Runge-Kutta 4 method for numerical integration in power system simulations.
+    Implement the Runge-Kutta 4 method for numerical integration in power system simulations.
 
     Attributes:
         x_0_store (dict): A dictionary for storing the previous state vector of each model.
@@ -134,7 +133,9 @@ class RK4(object):
         k2_store (dict): A dictionary for storing the k2 values of each model.
         k3_store (dict): A dictionary for storing the k3 values of each model.
     """
+
     def __init__(self):
+        """Initialize a RK4 solver object."""
         self.x_0_store = {}
         self.k1_store = {}
         self.k2_store = {}
@@ -142,12 +143,15 @@ class RK4(object):
 
     def step(self, ps_sim):
         """
-        Executes one step of the Runge-Kutta 4 integration method for the power system simulation.
+        Execute one step of the Runge-Kutta 4 integration method for the power system simulation.
+
         Args:
             ps_sim: The power system simulation object to be integrated.
         """
         # calculate bus voltages
-        voltages = torch.matmul(ps_sim.inverse_dyn_admittance_matrix(), ps_sim.current_injections())
+        voltages = torch.matmul(
+            ps_sim.inverse_dyn_admittance_matrix(), ps_sim.current_injections()
+        )
         # calc k1
         for i, bus in enumerate(ps_sim.busses):
             bus.update_voltages(voltages[:, i])
@@ -168,7 +172,9 @@ class RK4(object):
                     # This happens for models that do not have a differential function
                     pass
 
-        voltages = torch.matmul(ps_sim.inverse_dyn_admittance_matrix(), ps_sim.current_injections())
+        voltages = torch.matmul(
+            ps_sim.inverse_dyn_admittance_matrix(), ps_sim.current_injections()
+        )
         # calc k2
         for i, bus in enumerate(ps_sim.busses):
             bus.update_voltages(voltages[:, i])
@@ -184,7 +190,9 @@ class RK4(object):
                     # This happens for models that do not have a differential function
                     pass
         # calc k3
-        voltages = torch.matmul(ps_sim.inverse_dyn_admittance_matrix(), ps_sim.current_injections())
+        voltages = torch.matmul(
+            ps_sim.inverse_dyn_admittance_matrix(), ps_sim.current_injections()
+        )
         for i, bus in enumerate(ps_sim.busses):
             bus.update_voltages(voltages[:, i])
             for model in bus.models:
@@ -199,7 +207,9 @@ class RK4(object):
                     # This happens for models that do not have a differential function
                     pass
 
-        voltages = torch.matmul(ps_sim.inverse_dyn_admittance_matrix(), ps_sim.current_injections())
+        voltages = torch.matmul(
+            ps_sim.inverse_dyn_admittance_matrix(), ps_sim.current_injections()
+        )
         # calc k4
         for i, bus in enumerate(ps_sim.busses):
             bus.update_voltages(voltages[:, i])
@@ -208,8 +218,17 @@ class RK4(object):
                     model_id = id(model)
                     k4 = model.differential()
                     x_0 = self.x_0_store.get(model_id)
-                    x_1 = x_0 + (self.k1_store[model_id] + 2 * self.k2_store[model_id] + 2 * self.k3_store[
-                        model_id] + k4) * ps_sim.time_step / 6
+                    x_1 = (
+                        x_0
+                        + (
+                            self.k1_store[model_id]
+                            + 2 * self.k2_store[model_id]
+                            + 2 * self.k3_store[model_id]
+                            + k4
+                        )
+                        * ps_sim.time_step
+                        / 6
+                    )
                     model.set_state_vector(x_1)
                     self.x_0_store[model_id] = x_1
                 except AttributeError:
@@ -217,14 +236,12 @@ class RK4(object):
                     pass
 
     def reset(self):
-        """
-        Resets the RK4 solver object, so a new simulation can be started.
-        """
+        """Reset the RK4 solver object, so a new simulation can be started."""
         self.x_0_store = {}
 
 
 solver_dict = {
-    'euler': Euler,
-    'heun': Heun,
-    'rk4': RK4,
+    "euler": Euler,
+    "heun": Heun,
+    "rk4": RK4,
 }

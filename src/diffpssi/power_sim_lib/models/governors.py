@@ -1,13 +1,15 @@
+"""File containing the TGOV1 model.
+
+Other governor models can be added here.
 """
-File containing the TGOV1 model. Other governor models can be added here.
-"""
+
 from src.diffpssi.power_sim_lib.backend import *
 from src.diffpssi.power_sim_lib.models.blocks import LeadLag, PT1Limited
 
 
 class TGOV1(object):
     """
-    Represents the TGOV1 (Turbine Governor) model in power system simulations.
+    Represent the TGOV1 (Turbine Governor) model in power system simulations.
 
     The TGOV1 model simulates the behavior of a turbine governor, which controls the mechanical power output
     of a turbine to maintain a stable system frequency. It includes a proportional controller (droop), a PT1
@@ -19,19 +21,21 @@ class TGOV1(object):
         p_ref (float or torch.Tensor): The reference power setpoint for the governor.
     """
 
-    def __init__(self, param_dict=None,
-                 name=None,
-                 gen=None,
-                 r=None,
-                 d_t=None,
-                 t_1=None,
-                 t_2=None,
-                 t_3=None,
-                 v_min=None,
-                 v_max=None,
-                 ):
+    def __init__(
+        self,
+        param_dict=None,
+        name=None,
+        gen=None,
+        r=None,
+        d_t=None,
+        t_1=None,
+        t_2=None,
+        t_3=None,
+        v_min=None,
+        v_max=None,
+    ):
         """
-        Initializes the TGOV1 model with specified parameters.
+        Initialize the TGOV1 model with specified parameters.
 
         Args:
             param_dict (dict, optional): A dictionary of parameters for the model.
@@ -47,54 +51,60 @@ class TGOV1(object):
         """
         if param_dict is None:
             param_dict = {
-                'name': name,
-                'gen': gen,
-                'R': r,
-                'D_t': d_t,
-                'T_1': t_1,
-                'T_2': t_2,
-                'T_3': t_3,
-                'V_min': v_min,
-                'V_max': v_max,
+                "name": name,
+                "gen": gen,
+                "R": r,
+                "D_t": d_t,
+                "T_1": t_1,
+                "T_2": t_2,
+                "T_3": t_3,
+                "V_min": v_min,
+                "V_max": v_max,
             }
 
-        self.name = param_dict['name']
-        self.gen = param_dict['gen']
-        self.r = param_dict['R']
-        self.d_t = param_dict['D_t']
-        self.t_1 = param_dict['T_1']
-        self.t_2 = param_dict['T_2']
-        self.t_3 = param_dict['T_3']
-        self.v_min = param_dict['V_min']
-        self.v_max = param_dict['V_max']
+        self.name = param_dict["name"]
+        self.gen = param_dict["gen"]
+        self.r = param_dict["R"]
+        self.d_t = param_dict["D_t"]
+        self.t_1 = param_dict["T_1"]
+        self.t_2 = param_dict["T_2"]
+        self.t_3 = param_dict["T_3"]
+        self.v_min = param_dict["V_min"]
+        self.v_max = param_dict["V_max"]
 
         droop = 1 / self.r
-        self.pt1_lim = PT1Limited(t_pt1=self.t_1, gain_pt1=droop, lim_min=self.v_min, lim_max=self.v_max)
+        self.pt1_lim = PT1Limited(
+            t_pt1=self.t_1, gain_pt1=droop, lim_min=self.v_min, lim_max=self.v_max
+        )
         self.lead_lag = LeadLag(t_1=self.t_2, t_2=self.t_3)
 
         self.p_ref = 0.0
 
     def differential(self):
         """
-        Computes the differential equations for the TGOV1 model.
+        Compute the differential equations for the TGOV1 model.
 
         Returns:
             torch.Tensor: A tensor containing the derivatives of the state variables.
         """
-        return torch.concatenate([self.pt1_lim.differential(), self.lead_lag.differential()], axis=1)
+        return torch.concatenate(
+            [self.pt1_lim.differential(), self.lead_lag.differential()], axis=1
+        )
 
     def get_state_vector(self):
         """
-        Retrieves the current state vector of the TGOV1 model.
+        Retrieve the current state vector of the TGOV1 model.
 
         Returns:
             torch.Tensor: The current state vector of the model.
         """
-        return torch.concatenate([self.pt1_lim.get_state_vector(), self.lead_lag.get_state_vector()], axis=1)
+        return torch.concatenate(
+            [self.pt1_lim.get_state_vector(), self.lead_lag.get_state_vector()], axis=1
+        )
 
     def set_state_vector(self, x):
         """
-        Sets the state vector of the TGOV1 model.
+        Set the state vector of the TGOV1 model.
 
         Args:
             x (torch.Tensor): A tensor representing the new state vector.
@@ -104,7 +114,7 @@ class TGOV1(object):
 
     def get_output(self, omega_diff):
         """
-        Computes the output of the TGOV1 model given the frequency deviation.
+        Compute the output of the TGOV1 model given the frequency deviation.
 
         Args:
             omega_diff (float or torch.Tensor): The deviation of the system frequency from its nominal value.
@@ -124,7 +134,7 @@ class TGOV1(object):
 
     def enable_parallel_simulation(self, parallel_sims):
         """
-        Enables parallel simulations by adjusting the reference power setpoint for the specified number of simulations.
+        Enable parallel simulations by adjusting the reference power setpoint for the specified number of simulations.
 
         Args:
             parallel_sims (int): Number of parallel simulations.
@@ -135,7 +145,7 @@ class TGOV1(object):
 
     def initialize(self, p_mech):
         """
-        Initializes the TGOV1 model for simulation.
+        Initialize the TGOV1 model for simulation.
 
         Args:
             p_mech (float or torch.Tensor): The initial mechanical power.
