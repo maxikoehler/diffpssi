@@ -1,29 +1,47 @@
-[build-system]
-requires = ["setuptools"]
-build-backend = "setuptools.build_meta"
-
 [project]
 name = "diffpssi"
 version = "0.0.3"
+description = "A differentiable power system simulation tool."
 authors = [
-  { name="Georg Kordowich", email="georg.kordowich@fau.de" },
+    {name = "Georg Kordowich", email = "georg.kordowich@fau.de"},
+    {name = "Maximilian Köhler", email = "maxi.koehler@outlook.de"},
 ]
-dependencies = [
-  "matplotlib",
-  "numpy",
-  "torch",
-  "tqdm",
-]
-
-description = "A differentiable power system simulation tool"
-readme = "README.md"
-requires-python = ">=3.8"
+readme = "readme.md"
+requires-python = ">=3.11, <3.14"
 classifiers = [
     "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
+license = {text = "CC BY-NC-SA 4.0"}
+dependencies = [
+    "matplotlib >=3.10.5, <4.0.0",
+    "numpy >=2.3.2, <3.0.0",
+    "torch >=2.8.0, <3.0.0",
+    "tqdm >=4.67.1, <5.0.0",
+    "pandas >=2.3.1, <3.0.0",
+]
 
-[project.urls]
-Homepage = "https://github.com/georgkordowich/diffpssi"
-Issues = "https://github.com/georgkordowich/diffpssi/issues"
+[tool.poetry]
+packages = [{include = "diffpssi", from = "src"}, {include = "examples"}, {include = "tools"}]
+
+[tool.isort]
+profile = "black"
+src_paths = ["src", "tests"]
+known_first_party = ["diffpssi"]
+
+[tool.poetry.group.dev.dependencies]
+pre-commit = "^4.3.0"
+black = "^25.1.0"
+isort = "^6.0.1"
+pylint = "^3.3.8"
+pydocstyle = "^6.3.0"
+pytest = "^8.4.1"
+tox = "^4.28.4"
+mkdocs = ">=1.6.1,<2.0.0"
+mypy = "^1.18.1"
+ipykernel = ">=6.30.1, <7.0.0"
+mkdocstrings-python = ">=1.17.0"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"

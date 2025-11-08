@@ -1,20 +1,20 @@
-"""
-This example shows how to simulate the IBB model.
-"""
-import numpy as np
-import matplotlib.pyplot as plt
+"""This example shows how to simulate the IBB model."""
+
 import examples.models.ibb_model.ibb_model as mdl
+import matplotlib.pyplot as plt
+import numpy as np
+
 from src.diffpssi.power_sim_lib.simulator import PowerSystemSimulation as Pss
 
 
 def record_desired_parameters(simulation):
-    """
-    Records the desired parameters of the simulation.
+    """Record desired parameters from the simulation.
+
     Args:
-        simulation: The simulation to record the parameters from.
+        simulation: The simulation object.
 
-    Returns: A list of the recorded parameters.
-
+    Returns:
+        list: Recorded parameters.
     """
     # Record the desired parameters
     record_list = [
@@ -26,18 +26,17 @@ def record_desired_parameters(simulation):
 
 
 def main():
-    """
-    This function simulates the IBB model.
-    """
+    """Simuliert das IBB-Modell und speichert die Ergebnisse."""
     parallel_sims = 1
 
-    sim = Pss(parallel_sims=parallel_sims,
-              sim_time=10,
-              time_step=0.005,
-              solver='heun',
-              grid_data=mdl.load(),
-              )
-    sim.add_sc_event(1, 1.05, 'Bus 1')
+    sim = Pss(
+        parallel_sims=parallel_sims,
+        sim_time=10,
+        time_step=0.005,
+        solver="heun",
+        grid_data=mdl.load(),
+    )
+    sim.add_sc_event(1, 1.05, "Bus 1")
     sim.set_record_function(record_desired_parameters)
 
     # Run the simulation. Recorder format shall be [batch, timestep, value]
@@ -48,12 +47,12 @@ def main():
     for i in range(len(recorder[0, 0, :])):
         plt.subplot(len(recorder[0, 0, :]), 1, i + 1)
         plt.plot(t, recorder[0, :, i].real)
-        plt.ylabel('Parameter {}'.format(i))
-        plt.xlabel('Time [s]')
+        plt.ylabel("Parameter {}".format(i))
+        plt.xlabel("Time [s]")
     plt.show()
 
-    np.save('./data/original_data.npy', recorder[0].real)
+    np.save("./data/original_data.npy", recorder[0].real)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

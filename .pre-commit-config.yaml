@@ -1,0 +1,34 @@
+fail_fast: false
+repos:
+- repo: local
+  hooks:
+    - id: isort
+      name: isort
+      entry: poetry run isort
+      language: system
+      types: [file, python]
+      # files: '^(src|test)/'
+    - id: black
+      name: black
+      entry: poetry run black
+      language: system
+      types: [file, python]
+      # files: '^(src|test)/'
+    - id: pydocstyle
+      name: pydocstyle
+      entry: poetry run pydocstyle
+      language: system
+      types: [file, python]
+      # files: '^(src|test)/'
+#     - id: pylint
+#       name: pylint
+#       entry: poetry run pylint
+#       language: system
+#       types: [file, python]
+#       # files: '^(src|test)/'
+#     - id: mypy
+#       name: mypy
+#       entry: poetry run mypy
+#       language: system
+#       types: [file, python]
+#       # files: '^(src|test)/'
