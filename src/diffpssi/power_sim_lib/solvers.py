@@ -3,16 +3,19 @@
 The solvers are used to integrate the differential equations of the power system simulation. More solvers can be added here.
 """
 
+import logging
+
 from src.diffpssi.power_sim_lib.backend import *
+
+_logger = logging.getLogger(__name__)
 
 
 class Euler(object):
-    """
-    Implements the Euler method for numerical integration in power system simulations.
+    """Implement the Euler method for numerical integration in power system simulations.
 
-    The Euler method is a first-order numerical procedure for solving ordinary differential equations (ODEs)
-    with a given initial value. It is the most basic explicit method for numerical integration of ODEs
-    and is the simplest Runge–Kutta method.
+    The Euler method is a first-order numerical procedure for solving ordinary differential
+    equations (ODEs) with a given initial value. It is the most basic explicit method for
+    numerical integration of ODEs and is the simplest Runge–Kutta method.
 
     Attributes:
         x_0_store (dict): A dictionary for storing the previous state vector of each model.
@@ -20,11 +23,11 @@ class Euler(object):
 
     def __init__(self):
         """Initialize the Euler solver object."""
+        _logger.info("Using Euler Solver for Power System Simulation.")
         self.x_0_store = {}
 
     def step(self, ps_sim):
-        """
-        Execute one step of the Euler integration method for the power system simulation.
+        """Execute one step of the Euler integration method for the power system simulation.
 
         Args:
             ps_sim (PowerSystemSimulation): The power system simulation object to be integrated.
@@ -46,18 +49,33 @@ class Euler(object):
                 # Store x_1 for next step
                 self.x_0_store[model_id] = x_1
 
+        for trafo in ps_sim.trafos:
+            try:
+                trafo_id = id(trafo)  # Unique identifier for each model
+                dxdt_0 = trafo.differential()
+                # Use previously stored x_1 if available, else use current state vector
+                x_0 = trafo.get_state_vector()
+                x_1 = x_0 + dxdt_0 * ps_sim.time_step
+                trafo.set_state_vector(x_1)
+                # Store x_1 for next step
+                self.x_0_store[trafo_id] = x_1
+            except AttributeError:
+                # This happens for models that do not have a differential function
+                raise AttributeError("No differential for transformer could be found.")
+                pass
+
     def reset(self):
         """Reset the Euler solver object."""
         self.x_0_store = {}
 
 
 class Heun(object):
-    """
-    Implements the Heun method (or the improved Euler method) for numerical integration in power system simulations.
+    """Implement the Heun method for numerical integration in power system simulations.
 
-    The Heun method is a second-order numerical procedure for solving ordinary differential equations (ODEs).
-    It's an explicit method that improves upon the basic Euler method by making a preliminary step with the Euler method
-    and then an adjustment with a slope that is the average of the slopes at the two ends of the interval.
+    The Heun method is a second-order numerical procedure for solving ordinary differential
+    equations (ODEs). It's an explicit method that improves upon the basic Euler method by
+    making a preliminary step with the Euler method and then an adjustment with a slope that
+    is the average of the slopes at the two ends of the interval.
 
     Attributes:
         x_0_store (dict): A dictionary for storing the previous state vector of each model.
@@ -66,19 +84,19 @@ class Heun(object):
 
     def __init__(self):
         """Initialize the Heun solver object."""
+        _logger.info("Using Heun Solver for Power System Simulation.")
         self.x_0_store = {}
         self.dxdt_0_store = {}
 
     def step(self, ps_sim):
-        """
-        Execute one step of the Heun integration method for the power system simulation.
+        """Execute one step of the Heun integration method for the power system simulation.
 
         Args:
             ps_sim (PowerSystemSimulation): The power system simulation object to be integrated.
         """
         # calculate bus voltages
         voltages = torch.matmul(
-            ps_sim.inverse_dyn_admittance_matrix(), ps_sim.current_injections()
+            ps_sim.inverse_dynamic_y_matrix, ps_sim.current_injections()
         )
         for i, bus in enumerate(ps_sim.busses):
             bus.update_voltages(voltages[:, i])
@@ -92,14 +110,33 @@ class Heun(object):
                     # calculate guess for x_1
                     x_1_guess = x_0 + dxdt_0_guess * ps_sim.time_step
                     model.set_state_vector(x_1_guess)
+
                     self.dxdt_0_store[model_id] = dxdt_0_guess
                     self.x_0_store[model_id] = x_0
                 except AttributeError:
                     # This happens for models that do not have a differential function
                     pass
 
+        for trafo in ps_sim.trafos:
+            try:
+                trafo_id = id(trafo)  # Unique identifier for each model
+                dxdt_0_guess = trafo.differential()
+                # Use previously stored x_1 if available, else use current state vector
+                x_0 = trafo.get_state_vector()
+
+                # calculate guess for x_1
+                x_1_guess = x_0 + dxdt_0_guess * ps_sim.time_step
+                trafo.set_state_vector(x_1_guess)
+                # Store x_1 for next step
+                self.dxdt_0_store[trafo_id] = dxdt_0_guess
+                self.x_0_store[trafo_id] = x_0
+            except AttributeError:
+                # This happens for models that do not have a differential function
+                raise AttributeError("No differential for transformer could be found.")
+                pass
+
         voltages = torch.matmul(
-            ps_sim.inverse_dyn_admittance_matrix(), ps_sim.current_injections()
+            ps_sim.inverse_dynamic_y_matrix, ps_sim.current_injections()
         )
         for i, bus in enumerate(ps_sim.busses):
             bus.update_voltages(voltages[:, i])
@@ -117,6 +154,22 @@ class Heun(object):
                     # This happens for models that do not have a differential function
                     pass
 
+        for trafo in ps_sim.trafos:
+            try:
+                trafo_id = id(trafo)  # Unique identifier for each model
+                dxdt_1_guess = trafo.differential()
+                dxdt_est = (self.dxdt_0_store[trafo_id] + dxdt_1_guess) / 2
+                # Use previously stored x_1 if available, else use current state vector
+                x_0 = self.x_0_store.get(trafo_id)
+                x_1 = x_0 + dxdt_est * ps_sim.time_step
+                # Store x_1 for next step
+                trafo.set_state_vector(x_1)
+                self.x_0_store[trafo_id] = x_1
+            except AttributeError:
+                # This happens for models that do not have a differential function
+                raise AttributeError("No differential for transformer could be found.")
+                pass
+
     def reset(self):
         """Reset the Heun solver object."""
         self.x_0_store = {}
@@ -124,8 +177,7 @@ class Heun(object):
 
 
 class RK4(object):
-    """
-    Implement the Runge-Kutta 4 method for numerical integration in power system simulations.
+    """Implement the Runge-Kutta 4 method for numerical integration in power system simulations.
 
     Attributes:
         x_0_store (dict): A dictionary for storing the previous state vector of each model.
@@ -136,21 +188,21 @@ class RK4(object):
 
     def __init__(self):
         """Initialize a RK4 solver object."""
+        _logger.info("Using RK4 Solver for Power System Simulation.")
         self.x_0_store = {}
         self.k1_store = {}
         self.k2_store = {}
         self.k3_store = {}
 
     def step(self, ps_sim):
-        """
-        Execute one step of the Runge-Kutta 4 integration method for the power system simulation.
+        """Execute one step of the Runge-Kutta 4 method for the power system simulation.
 
         Args:
             ps_sim: The power system simulation object to be integrated.
         """
         # calculate bus voltages
         voltages = torch.matmul(
-            ps_sim.inverse_dyn_admittance_matrix(), ps_sim.current_injections()
+            ps_sim.inverse_dynamic_y_matrix, ps_sim.current_injections()
         )
         # calc k1
         for i, bus in enumerate(ps_sim.busses):
@@ -172,9 +224,28 @@ class RK4(object):
                     # This happens for models that do not have a differential function
                     pass
 
+        for trafo in ps_sim.trafos:
+            try:
+                trafo_id = id(trafo)  # Unique identifier for each model
+                k1 = trafo.differential()
+                # Use previously stored x_1 if available, else use current state vector
+                x_0 = trafo.get_state_vector()
+
+                # calculate guess for x_1
+                x_k2 = x_0 + k1 * ps_sim.time_step / 2
+                trafo.set_state_vector(x_k2)
+                self.k1_store[trafo_id] = k1
+
+                self.x_0_store[trafo_id] = x_0
+            except AttributeError:
+                # This happens for models that do not have a differential function
+                raise AttributeError("No differential for transformer could be found.")
+                pass
+
         voltages = torch.matmul(
-            ps_sim.inverse_dyn_admittance_matrix(), ps_sim.current_injections()
+            ps_sim.inverse_dynamic_y_matrix, ps_sim.current_injections()
         )
+
         # calc k2
         for i, bus in enumerate(ps_sim.busses):
             bus.update_voltages(voltages[:, i])
@@ -189,10 +260,26 @@ class RK4(object):
                 except AttributeError:
                     # This happens for models that do not have a differential function
                     pass
+
+        for trafo in ps_sim.trafos:
+            try:
+                trafo_id = id(trafo)  # Unique identifier for each model
+                k2 = trafo.differential()
+                x_0 = self.x_0_store.get(trafo_id)
+                x_k3 = x_0 + k2 * ps_sim.time_step / 2
+                trafo.set_state_vector(x_k3)
+                self.k2_store[trafo_id] = k2
+            except AttributeError:
+                # This happens for models that do not have a differential function
+                raise AttributeError("No differential for transformer could be found.")
+                pass
+
         # calc k3
+
         voltages = torch.matmul(
-            ps_sim.inverse_dyn_admittance_matrix(), ps_sim.current_injections()
+            ps_sim.inverse_dynamic_y_matrix, ps_sim.current_injections()
         )
+
         for i, bus in enumerate(ps_sim.busses):
             bus.update_voltages(voltages[:, i])
             for model in bus.models:
@@ -207,9 +294,23 @@ class RK4(object):
                     # This happens for models that do not have a differential function
                     pass
 
+        for trafo in ps_sim.trafos:
+            try:
+                trafo_id = id(trafo)  # Unique identifier for each model
+                k3 = trafo.differential()
+                x_0 = self.x_0_store.get(trafo_id)
+                x_k4 = x_0 + k3 * ps_sim.time_step
+                trafo.set_state_vector(x_k4)
+                self.k3_store[trafo_id] = k3
+            except AttributeError:
+                # This happens for models that do not have a differential function
+                raise AttributeError("No differential for transformer could be found.")
+                pass
+
         voltages = torch.matmul(
-            ps_sim.inverse_dyn_admittance_matrix(), ps_sim.current_injections()
+            ps_sim.inverse_dynamic_y_matrix, ps_sim.current_injections()
         )
+
         # calc k4
         for i, bus in enumerate(ps_sim.busses):
             bus.update_voltages(voltages[:, i])
@@ -234,6 +335,29 @@ class RK4(object):
                 except AttributeError:
                     # This happens for models that do not have a differential function
                     pass
+
+        for trafo in ps_sim.trafos:
+            try:
+                trafo_id = id(trafo)  # Unique identifier for each model
+                k4 = trafo.differential()
+                x_0 = self.x_0_store.get(trafo_id)
+                x_1 = (
+                    x_0
+                    + (
+                        self.k1_store[trafo_id]
+                        + 2 * self.k2_store[trafo_id]
+                        + 2 * self.k3_store[trafo_id]
+                        + k4
+                    )
+                    * ps_sim.time_step
+                    / 6
+                )
+                trafo.set_state_vector(x_1)
+                self.x_0_store[trafo_id] = x_1
+            except AttributeError:
+                # This happens for models that do not have a differential function
+                raise AttributeError("No differential for transformer could be found.")
+                pass
 
     def reset(self):
         """Reset the RK4 solver object, so a new simulation can be started."""

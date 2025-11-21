@@ -20,3 +20,10 @@ __pycache__/
 venv
 env
 .github/copilot-instructions.md
+/development_files/
+/private_examples/
+
+# Ignore all data files and plots other than validation data
+*.png
+*.pdf
+*.csv

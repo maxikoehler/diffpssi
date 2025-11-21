@@ -1,49 +1,67 @@
-"""Main simulation class for power system simulation.
+"""
+Main simulation class for power system simulation.
 
-This class represents a power system simulation.
-It contains all the necessary information about the system, such as the buses, lines,
-transformers, etc. It also contains the admittance matrix, which is computed based on
-the system configuration. The simulation can be run by calling the run() method.
+This module provides the main simulation classes used for dynamic and test-bench
+simulations of power systems. It contains the :class:`PowerSystemSimulation`, a
+simple :class:`Recorder`, and a :class:`TestBench` utility used for component
+characterization and controller tests.
+
+Typical usage::
+    sim = PowerSystemSimulation(time_step=0.01, sim_time=10, parallel_sims=1, ...)
+    sim.create_grid(grid_data)
+    sim.set_record_function(my_recorder)
+    time, data = sim.run()
+
+The public classes expose helper methods to add buses, lines, transformers,
+generators and control models. Heavy numerical work is delegated to model and
+solver implementations in other modules.
 """
 
+import logging
 import os
 import time
 
 import numpy as np
 from tqdm import tqdm
 
-from src.diffpssi.power_sim_lib.backend import *
-from src.diffpssi.power_sim_lib.load_flow import do_load_flow
-from src.diffpssi.power_sim_lib.models.exciters import SEXS
-from src.diffpssi.power_sim_lib.models.governors import TGOV1
-from src.diffpssi.power_sim_lib.models.stabilizers import STAB1
-from src.diffpssi.power_sim_lib.models.static_models import *
-from src.diffpssi.power_sim_lib.models.synchronous_machine import SynchMachine
-from src.diffpssi.power_sim_lib.solvers import solver_dict
+from diffpssi.power_sim_lib.backend import *
+from diffpssi.power_sim_lib.load_flow import do_load_flow
+from diffpssi.power_sim_lib.models.exciters import SEXS
+from diffpssi.power_sim_lib.models.governors import TGOV1
+from diffpssi.power_sim_lib.models.stabilizers import STAB1
+from diffpssi.power_sim_lib.models.static_models import *
+from diffpssi.power_sim_lib.models.synchronous_machine import SynchMachine
+from diffpssi.power_sim_lib.models.transformer import transformer_type_dict
+from diffpssi.power_sim_lib.solvers import solver_dict
+from diffpssi.power_sim_lib.tb_solvers import tb_solver_dict
+
+_logger = logging.getLogger(__name__)
 
 
 class PowerSystemSimulation(object):
     """
-    Represent a power system simulation.
+    Representation of a dynamic power system simulation.
+
+    This class aggregates network elements (buses, lines, transformers), dynamic
+    models (generators, exciters, governors, loads) and the numerical solver used
+    to advance the simulation in time.
 
     Attributes:
-        time (numpy.ndarray): Array of time steps for the simulation.
-        time_step (float): Time step interval.
-        busses (list): List of bus objects in the system.
-        non_slack_busses (list): List of non-slack buses in the system (currently unused).
-        bus_idxs (dict): Dictionary mapping bus names to their indices.
-        lines (list): List of line objects in the system.
-        trafos (list): List of transformer objects in the system.
-        fn (float): System frequency in Hz.
-        base_mva (float): Base power in MVA.
-        base_voltage (float): Base voltage.
-        dynamic_y_matrix (torch.Tensor): Admittance matrix for dynamic analysis.
-        static_y_matrix (torch.Tensor): Admittance matrix for static analysis.
-        sc_events (ScEvent): Short circuit event object (if any).
-        parallel_sims (int): Number of parallel simulations to run.
-        record_func (function): Function to record simulation data.
-        verbose (bool): Flag for verbose output.
-        solver (Solver): Solver object for the simulation.
+        time (numpy.ndarray): Time vector used by the simulation.
+        time_step (float or torch.Tensor): Simulation time step (may be batched).
+        busses (list): List of Bus objects in the network.
+        lines (list): List of Line objects in the network.
+        trafos (list): List of transformer objects.
+        base_mva (float): System base power in MVA.
+        base_voltage (float): System nominal voltage.
+        fn (float): Nominal system frequency in Hz.
+        parallel_sims (int): Number of parallel simulations (batch size).
+        solver (Solver): Numerical integrator/solver instance used for stepping.
+        record_func (callable): Optional function used to collect outputs each step.
+
+    The class provides convenience methods to construct the grid from a data
+    structure, add elements and control models, initialize model states and run
+    the time-domain simulation.
     """
 
     def __init__(
@@ -51,23 +69,40 @@ class PowerSystemSimulation(object):
         time_step,
         sim_time,
         parallel_sims,
-        solver,
+        solver="heun",
+        trans_model="AM",
+        backend="numpy",
         grid_data=None,
+        jacobi_calculation=False,
         verbose=True,
     ):
         """
-        Initialize the PowerSystemSimulation object.
+        Initialize a PowerSystemSimulation.
+
+        For testing purposes the transformer modelling approach can be selected
+        via ``trans_model`` (e.g. 'CIM', 'AM' or 'old').
 
         Args:
-            time_step (float): Time step for the simulation.
-            sim_time (float): Total simulation time.
-            parallel_sims (int): Number of parallel simulations.
-            verbose (bool): Flag for verbose output.
-            solver (str): Name of the solver to use.
+            time_step (float): Simulation time step (seconds).
+            sim_time (float): Total simulation duration (seconds).
+            parallel_sims (int): Number of parallel simulations (batch size).
+            solver (str): Key for the numerical solver (used with solver_dict).
+            trans_model (str): Transformer modelling approach ('CIM', 'AM', 'old').
+            backend (str): Computational backend name (currently not directly used).
+            grid_data (dict, optional): Optional grid specification to create the grid on init.
+            jacobi_calculation (bool, optional): If True, compute jacobian during run.
+            verbose (bool, optional): If True, enable progress output.
+
+        Returns:
+            None
         """
+        # setting mode of the transformer model
+        self.trans_model = trans_model
+
         # Add timestep in the end because the first step does not have a value
-        self.time = np.arange(0, sim_time, time_step)
+        self.time = np.arange(0, sim_time + time_step, time_step)
         self.time_step = time_step
+        self.t = 0
 
         self.busses = []
         self.non_slack_busses = []
@@ -83,11 +118,13 @@ class PowerSystemSimulation(object):
         self.parallel_sims = parallel_sims
         self.record_func = None
         self.verbose = verbose
+        self.jacobian_calculation = jacobi_calculation
+        self.jacobian_matrix = None
 
         if os.environ.get("DIFFPSSI_FORCE_INTEGRATOR") is not None:
             # this should only be used for integration tests
             self.solver = solver_dict[os.environ.get("DIFFPSSI_FORCE_INTEGRATOR")]()
-            print(
+            _logger.warning(
                 "WARNING: FORCING THE USE OF THE {} INTEGRATOR. "
                 "THIS SHOULD ONLY HAPPEN FOR UNITTESTS".format(
                     os.environ.get("DIFFPSSI_FORCE_INTEGRATOR")
@@ -107,10 +144,13 @@ class PowerSystemSimulation(object):
 
     def get_generator_by_name(self, name):
         """
-        Return a generator object by its name.
+        Return a generator model by name.
 
         Args:
-            name: The name of the generator.
+            name (str): Generator model name to search for.
+
+        Returns:
+            object or None: The matching generator model, or None if not found.
         """
         for bus in self.busses:
             for model in bus.models:
@@ -120,10 +160,17 @@ class PowerSystemSimulation(object):
 
     def create_grid(self, grid_data):
         """
-        Create the grid based on the provided grid data.
+        Create and populate the simulation grid from a data dictionary.
+
+        The provided ``grid_data`` is transformed into internal structures and
+        used to instantiate buses, generators, loads, lines, transformers and
+        control models (AVR, governors, PSS). The method finally sets the slack bus.
 
         Args:
-            grid_data (dict): Dictionary containing the grid data.
+            grid_data (dict): Grid specification used to construct buses and models.
+
+        Returns:
+            None
         """
         self.fn = grid_data["f"]
         self.base_mva = grid_data["base_mva"]
@@ -168,13 +215,11 @@ class PowerSystemSimulation(object):
                 )
                 self.add_generator(generator_model)
 
-        for load_dict in grid_data.get("loads", []):
-            load_model = Load(param_dict=load_dict, s_n_sys=self.base_mva)
-            self.add_load(load_model)
-
-        for shunt_dict in grid_data.get("shunts", []):
-            shunt_model = Shunt(param_dict=shunt_dict, s_n_sys=self.base_mva)
-            self.add_shunt(shunt_model)
+        loads = grid_data.get("loads", [])
+        if isinstance(loads, dict):
+            for load_dict in loads["ZIP"]:
+                load_model = Load(param_dict=load_dict, s_n_sys=self.base_mva)
+                self.add_load(load_model)
 
         for line_dict in grid_data.get("lines", []):
             line_model = Line(
@@ -183,8 +228,12 @@ class PowerSystemSimulation(object):
             self.add_line(line_model)
 
         for transformer_dict in grid_data.get("transformers", []):
-            transformer_model = Transformer(
-                param_dict=transformer_dict, s_n_sys=self.base_mva
+            trans_type = transformer_dict.get("type", "simple")
+            transformer_model = transformer_type_dict[trans_type](
+                sim=self,
+                s_n_sys=self.base_mva,
+                trans_model=self.trans_model,
+                param_dict=transformer_dict,
             )
             self.add_transformer(transformer_model)
 
@@ -210,20 +259,26 @@ class PowerSystemSimulation(object):
 
     def set_slack_bus(self, slack_bus):
         """
-        Set the slack bus of the system.
+        Set the slack/reference bus for the system.
 
         Args:
-            slack_bus (str): The name of the slack bus.
+            slack_bus (str): Name of the bus to set as slack (must exist in bus_idxs).
+
+        Returns:
+            None
         """
         slack_bus_idx = self.bus_idxs[slack_bus]
         self.busses[slack_bus_idx].lf_type = "SL"
 
     def add_bus(self, bus_model):
         """
-        Add a bus to the system.
+        Add a bus object to the simulation and enable batching if required.
 
         Args:
-            bus_model (Bus): A bus model to add to the grid.
+            bus_model (Bus): Bus instance to append to the simulation.
+
+        Returns:
+            None
         """
         # Assign an index to the bus and add it to the list of buses
         self.bus_idxs[bus_model.name] = len(self.busses)
@@ -232,10 +287,17 @@ class PowerSystemSimulation(object):
 
     def add_generator(self, generator_model):
         """
-        Add a generator to a specified bus in the system.
+        Add a synchronous generator model to its configured bus.
+
+        This will append the model to the bus, enable parallel simulation for
+        the generator and set the bus type to PV. The bus voltage is adjusted
+        to the generator's setpoint.
 
         Args:
-            generator_model (SynchMachine): A generator model to add to the grid.
+            generator_model (SynchMachine): Generator instance with attribute .bus and .v_soll.
+
+        Returns:
+            None
         """
         bus = self.busses[self.bus_idxs[generator_model.bus]]
         generator_model.enable_parallel_simulation(self.parallel_sims)
@@ -246,10 +308,13 @@ class PowerSystemSimulation(object):
 
     def add_inverter(self, inverter_model):
         """
-        Add an inverter to a specified bus in the system.
+        Add an inverter model to the specified bus and mark bus as PQ.
 
         Args:
-            inverter_model (Inverter): An inverter model to add to the grid.
+            inverter_model (object): Inverter instance (must provide .bus attribute).
+
+        Returns:
+            None
         """
         bus = self.busses[self.bus_idxs[inverter_model.bus]]
         inverter_model.enable_parallel_simulation(self.parallel_sims)
@@ -259,10 +324,13 @@ class PowerSystemSimulation(object):
 
     def add_load(self, load_model):
         """
-        Add a load to a specified bus in the system.
+        Add a static or dynamic load model to its bus.
 
         Args:
-            load_model (Load): A load model to add to the grid.
+            load_model (Load): Load instance with attribute .bus.
+
+        Returns:
+            None
         """
         bus = self.busses[self.bus_idxs[load_model.bus]]
         load_model.enable_parallel_simulation(self.parallel_sims)
@@ -270,10 +338,13 @@ class PowerSystemSimulation(object):
 
     def add_shunt(self, shunt_model):
         """
-        Add a shunt to a specified bus in the system.
+        Add a shunt element to its bus.
 
         Args:
-            shunt_model (Shunt): A shunt model to add to the grid.
+            shunt_model (Shunt): Shunt instance with attribute .bus.
+
+        Returns:
+            None
         """
         bus = self.busses[self.bus_idxs[shunt_model.bus]]
         shunt_model.enable_parallel_simulation(self.parallel_sims)
@@ -281,10 +352,13 @@ class PowerSystemSimulation(object):
 
     def add_line(self, line_model):
         """
-        Add a transmission line between two buses in the system.
+        Add a transmission line to the network and set internal bus indices.
 
         Args:
-            line_model (Line): A line model to add to the grid.
+            line_model (Line): Line instance containing from_bus_name and to_bus_name.
+
+        Returns:
+            None
         """
         bus_from = self.bus_idxs[line_model.from_bus_name]
         bus_to = self.bus_idxs[line_model.to_bus_name]
@@ -298,10 +372,13 @@ class PowerSystemSimulation(object):
 
     def add_transformer(self, transformer_model):
         """
-        Add a transformer between two buses in the system.
+        Add a transformer to the network and set endpoint indices.
 
         Args:
-            transformer_model (Transformer): A transformer model to add to the grid.
+            transformer_model (Transformer): Transformer instance with .from_bus_name and .to_bus_name.
+
+        Returns:
+            None
         """
         bus_from = self.bus_idxs[transformer_model.from_bus_name]
         bus_to = self.bus_idxs[transformer_model.to_bus_name]
@@ -315,12 +392,13 @@ class PowerSystemSimulation(object):
 
     def add_exciter(self, exciter_model):
         """
-        Add an exciter to a specified generator in the system.
-
-        Different exciter models work, for example the SEXS.
+        Attach an exciter model to its generator and set the voltage setpoint.
 
         Args:
-            exciter_model (object): An exciter model to add to the grid.
+            exciter_model (object): Exciter instance (must include attribute .gen).
+
+        Returns:
+            None
         """
         generator = self.get_generator_by_name(exciter_model.gen)
         exciter_model.v_setpoint = generator.v_soll
@@ -330,12 +408,13 @@ class PowerSystemSimulation(object):
 
     def add_governor(self, governor_model):
         """
-        Add a governor to a specified generator in the system.
-
-        Different governor models work, for example the TGOV1.
+        Attach a governor model to its generator.
 
         Args:
-            governor_model (object): A governor model to add to the grid.
+            governor_model (object): Governor instance (must include attribute .gen).
+
+        Returns:
+            None
         """
         generator = self.get_generator_by_name(governor_model.gen)
         governor_model.enable_parallel_simulation(self.parallel_sims)
@@ -344,29 +423,43 @@ class PowerSystemSimulation(object):
 
     def add_pss(self, pss_model):
         """
-        Add a PSS to a specified generator in the system.
-
-        Different PSS models work, for example the STAB1.
+        Attach a power system stabilizer (PSS) to its generator.
 
         Args:
-            pss_model (object): A PSS model to add to the grid.
+            pss_model (object): PSS instance (must include attribute .gen).
+
+        Returns:
+            None
         """
         generator = self.get_generator_by_name(pss_model.gen)
         pss_model.enable_parallel_simulation(self.parallel_sims)
 
         generator.add_pss(pss_model)
 
-    def inverse_dyn_admittance_matrix(self):
+    def add_voltage_controller(self, voltage_controller_model):
         """
-        Compute and returns the inverse dynamic admittance matrix for the system.
+        Add a voltage controller to the simulation.
+
+        Args:
+            voltage_controller_model (object): Controller instance to add.
 
         Returns:
-            torch.Tensor: The computed admittance matrix.
+            None
         """
-        if self.inverse_dynamic_y_matrix is not None:
-            # get the previously computed dynamic y_matrix
-            return self.inverse_dynamic_y_matrix
-        else:
+        pass
+
+    def inverse_dyn_admittance_matrix(self):
+        """
+        Compute and return the inverse dynamic admittance matrix.
+
+        The admittance matrix is assembled from line, transformer and bus
+        contributions; the function returns the inverse of the assembled
+        dynamic bus admittance matrix for each parallel simulation.
+
+        Returns:
+            torch.Tensor: Batched inverse dynamic admittance matrix with complex dtype.
+        """
+        if True:
             # reconstruct the dynamic y_matrix
             dynamic_y_matrix = torch.zeros(
                 (self.parallel_sims, len(self.busses), len(self.busses)),
@@ -386,20 +479,23 @@ class PowerSystemSimulation(object):
                     :, line.to_bus_id, line.to_bus_id
                 ] += line.get_admittance_diagonal()
 
+            # TRANSFORMER section
             for transformer in self.trafos:
+                trafo_adm = transformer.calc_admittance(return_need=True)
                 dynamic_y_matrix[
                     :, transformer.from_bus_id, transformer.to_bus_id
-                ] += transformer.get_admittance_off_diagonal()
+                ] += trafo_adm[0, 1]
                 dynamic_y_matrix[
                     :, transformer.to_bus_id, transformer.from_bus_id
-                ] += transformer.get_admittance_off_diagonal()
+                ] += trafo_adm[1, 0]
                 dynamic_y_matrix[
                     :, transformer.from_bus_id, transformer.from_bus_id
-                ] += transformer.get_admittance_diagonal()
+                ] += trafo_adm[0, 0]
                 dynamic_y_matrix[
                     :, transformer.to_bus_id, transformer.to_bus_id
-                ] += transformer.get_admittance_diagonal()
+                ] += trafo_adm[1, 1]
 
+            # BUS section
             for i, bus in enumerate(self.busses):
                 for model in bus.models:
                     dynamic_y_matrix[:, i, i] += model.get_admittance(
@@ -411,10 +507,13 @@ class PowerSystemSimulation(object):
 
     def lf_admittance_matrix(self):
         """
-        Compute and returns the static admittance matrix for the system.
+        Compute and return the static (load-flow) admittance matrix.
+
+        This function caches the static admittance matrix in ``self.static_y_matrix``
+        to avoid repeated re-assembly.
 
         Returns:
-            torch.Tensor: The computed admittance matrix.
+            torch.Tensor: Batched static admittance matrix with complex dtype.
         """
         if self.static_y_matrix is not None:
             # get the previously computed static y_matrix
@@ -441,16 +540,16 @@ class PowerSystemSimulation(object):
         for transformer in self.trafos:
             static_y_matrix[
                 :, transformer.from_bus_id, transformer.to_bus_id
-            ] += transformer.get_admittance_off_diagonal()
+            ] += transformer.calc_admittance_static(return_need=True)[0, 1]
             static_y_matrix[
                 :, transformer.to_bus_id, transformer.from_bus_id
-            ] += transformer.get_admittance_off_diagonal()
+            ] += transformer.calc_admittance_static(return_need=True)[1, 0]
             static_y_matrix[
                 :, transformer.from_bus_id, transformer.from_bus_id
-            ] += transformer.get_admittance_diagonal()
+            ] += transformer.calc_admittance_static(return_need=True)[0, 0]
             static_y_matrix[
                 :, transformer.to_bus_id, transformer.to_bus_id
-            ] += transformer.get_admittance_diagonal()
+            ] += transformer.calc_admittance_static(return_need=True)[1, 1]
 
         for i, bus in enumerate(self.busses):
             for model in bus.models:
@@ -462,10 +561,13 @@ class PowerSystemSimulation(object):
 
     def current_injections(self):
         """
-        Compute the current injections at each bus in the system.
+        Return the current injections for all buses in the system.
+
+        Each bus computes its own injection (via its models) and the results are
+        stacked along the bus axis.
 
         Returns:
-            torch.Tensor: A tensor representing current injections at each bus.
+            torch.Tensor: Batched tensor containing current injections.
         """
         return torch.stack(
             [bus.get_current_injections() for bus in self.busses], axis=1
@@ -473,51 +575,97 @@ class PowerSystemSimulation(object):
 
     def initialize(self):
         """
-        Initialize the simulation state.
+        Initialize model states and compute initial algebraic variables.
 
-        By setting up initial conditions and computing initial values.
+        This runs a load-flow (via :func:`do_load_flow`) to determine initial
+        power injections, calls ``initialize`` on models where provided and
+        computes initial bus voltages.
+
+        Returns:
+            None
         """
         power_inj = do_load_flow(self)
         for i, bus in enumerate(self.busses):
             for model in bus.models:
-                model.initialize(power_inj[:, i], bus.voltage)
+                try:
+                    model.initialize(power_inj[:, i], bus.voltage)
+                except AttributeError:
+                    raise AttributeError(
+                        f"Model {model} at bus {bus} has no initialize method."
+                    )
+
+        for i, trafo in enumerate(self.trafos):
+            try:
+                trafo.initialize()
+            except AttributeError:
+                raise AttributeError("Transformer model has no initialize method.")
+
         # calculate bus voltages
         voltages = torch.matmul(
             self.inverse_dyn_admittance_matrix(), self.current_injections()
         )
 
-        for i, bus in enumerate(self.busses):
-            bus.update_voltages(voltages[:, i])
+        bus.update_voltages(voltages[:, i])
 
     def add_sc_event(self, start_time, end_time, bus):
         """
-        Add a short circuit event to the simulation.
+        Add a short-circuit event (temporary fault) affecting a bus.
 
         Args:
-            start_time (float): The start time of the short circuit event.
-            end_time (float): The end time of the short circuit event.
-            bus (str): The name of the bus where the short circuit occurs.
+            start_time (float): Fault start time (seconds).
+            end_time (float): Fault end time (seconds).
+            bus (str): Name of the bus where the fault occurs.
+
+        Returns:
+            None
         """
         bus_idx = self.bus_idxs[bus]
         self.sc_events.append(ScEvent(start_time, end_time, bus_idx))
 
     def add_param_event(self, timestep, model, parameter, new_val):
         """
-        Add a parameter event to the simulation.
+        Schedule a discrete parameter change at a given timestep.
 
         Args:
-            timestep (float): The time step of the parameter event.
-            model (object): The model object to change the parameter of.
-            parameter (str): The name of the parameter to change.
-            new_val (float): The new value of the parameter.
+            timestep (float): Time at which the parameter is changed.
+            model (object): Model instance whose attribute will be modified.
+            parameter (str): Name of the attribute/parameter to change.
+            new_val (Any): New value to assign to the parameter.
+
+        Returns:
+            None
         """
-        self.param_events.append(ParamEvent(timestep, model, parameter, new_val))
+        param_event = ParamEvent(timestep, model, parameter, new_val)
+        param_event.enable_parallel_simulation(self.parallel_sims)
+        self.param_events.append(param_event)
+
+    def add_param_dependency(self, timestep, model, parameter, function):
+        """
+        Schedule a time-dependent parameter update using a callable.
+
+        Args:
+            timestep (float): Time resolution or step used to evaluate the function.
+            model (object): Model instance whose attribute will be updated.
+            parameter (str): Name of the attribute to update.
+            function (callable): Callable taking a time argument and returning the new value.
+
+        Returns:
+            None
+        """
+        param_event = ParamDependencyTime(timestep, model, parameter, function)
+        param_event.enable_parallel_simulation(self.parallel_sims)
+        self.param_events.append(param_event)
 
     def set_record_function(self, record_func):
-        """Set a custom function to record simulation data.
+        """
+        Set a custom function used to record simulation data each timestep.
 
         Args:
-            record_func (function): A function that defines how simulation data is recorded.
+            record_func (callable): Callable that accepts the simulation instance
+                and returns a sequence of tensors/values to record.
+
+        Returns:
+            None
         """
         self.record_func = record_func
 
@@ -525,7 +673,11 @@ class PowerSystemSimulation(object):
         """
         Reset the simulation to its initial state.
 
-        This includes resetting all model states and matrices.
+        This will call ``reset`` on all buses/models, reset the solver and clear
+        cached admittance matrices.
+
+        Returns:
+            None
         """
         # reset all model states
         for bus in self.busses:
@@ -537,26 +689,21 @@ class PowerSystemSimulation(object):
 
     def run(self):
         """
-        Run the simulation.
+        Run the time-domain simulation and collect recorded outputs.
 
-        It initializes the system, runs through the simulation time steps,
-        and records the system state.
+        The routine initializes the system, steps through the configured time
+        vector and calls the configured solver. If a ``record_func`` is set, its
+        outputs are collected and returned as a tensor.
 
         Returns:
-            tuple: A tuple containing the simulation time steps and a tensor of recorded data.
+            tuple: ``(time_vector, recorded_tensor)`` where ``time_vector`` is a
+            numpy array and ``recorded_tensor`` contains the recorded outputs.
         """
         self.initialize()
 
         start_time = time.time()
 
         recorder_list = []
-        # copy the tensor of y_matrix
-        if BACKEND == "numpy":
-            original_y_matrix = self.inverse_dynamic_y_matrix.copy()
-        elif BACKEND == "torch":
-            original_y_matrix = self.inverse_dynamic_y_matrix.clone()
-        else:
-            raise ValueError("Backend not recognized")
 
         if self.verbose:
             iterator = tqdm(self.time)
@@ -564,31 +711,283 @@ class PowerSystemSimulation(object):
             iterator = self.time
 
         for t in iterator:
-            for sc_event in self.sc_events:
-                if sc_event.is_active(t):
-                    dynamic_y_matrix = torch.linalg.inv(self.inverse_dynamic_y_matrix)
-                    dynamic_y_matrix[:, sc_event.bus, sc_event.bus] = 1e6
-                    self.inverse_dynamic_y_matrix = torch.linalg.inv(dynamic_y_matrix)
-                else:
-                    # todo
-                    self.inverse_dynamic_y_matrix = original_y_matrix
+            if self.jacobian_calculation:
+                self.jacobian_matrix = torch.linalg.det(
+                    self.construct_jacobian_matrix()
+                ) * torch.ones((self.parallel_sims, 1), dtype=torch.float64)
 
+            # Parameter event handler has to be BEFORE y_matrix calculation
+            # -> Respect changes in models in the y_matrix
             for param_event in self.param_events:
                 param_event.handle_event(t)
+
+            # TRANSFORMER MODEL differences
+            dynamic_y_matrix = torch.linalg.inv(self.inverse_dyn_admittance_matrix())
+
+            # SC event maipulations have to be done AFTER the calculation of new y_matrix
+            for sc_event in self.sc_events:
+                if sc_event.is_active(t):
+                    dynamic_y_matrix[:, sc_event.bus, sc_event.bus] = 1e6
+
+            self.inverse_dynamic_y_matrix = torch.linalg.inv(dynamic_y_matrix)
 
             # do a step with the solver
             self.solver.step(self)
 
-            # Record the state of the system
+            # Record the state of the system; all desired parameters
             try:
                 recorder_list.append(torch.stack(self.record_func(self)))
-            except TypeError:
-                print("No record function specified")
+            except TypeError as e:
+                _logger.warning("No record function specified: %s", e)
+
+            self.t += self.time_step
 
         # Format shall be [batch, timestep, value]
-        return_tensor = torch.swapaxes(
-            torch.stack(recorder_list, axis=1), 0, 2
-        ).squeeze(-1)
+        try:
+            return_tensor = torch.swapaxes(
+                torch.stack(recorder_list, axis=1), 0, 2
+            ).squeeze(-1)
+        except:
+            return_tensor = torch.stack(recorder_list, axis=1)
+
+        if self.verbose:
+            end_time = time.time()
+            print("=" * 50)
+            print(
+                "Dynamic simulation finished in {:.2f} seconds".format(
+                    end_time - start_time
+                )
+            )
+
+        return self.time, return_tensor
+
+
+class Recorder(object):
+    """
+    Helper to manage recording configuration and execution.
+
+    The Recorder wraps a user-provided recorder function and exposes helpers
+    to produce a static description list and to record values during a run.
+
+    Attributes:
+        sim (PowerSystemSimulation or TestBench): Simulation/TestBench instance.
+        recorder_dict (callable): Callable that defines what to record.
+        description (list): List of recorded field descriptions.
+    """
+
+    def __init__(self, sim=None, recorder_dict=None):
+        """
+        Initialize the Recorder.
+
+        Args:
+            sim (PowerSystemSimulation or TestBench, optional): Simulation instance.
+            recorder_dict (callable, optional): Recorder function. When provided,
+                the Recorder will populate the description list by calling the
+                function with ``call=False``.
+
+        Returns:
+            None
+        """
+        if sim is not None:
+            self.sim = sim
+        else:
+            self.sim = None
+
+        if recorder_dict is not None:
+            self.recorder_dict = recorder_dict
+
+        if recorder_dict is not None:
+            self.description = []
+            for entry in recorder_dict(self.sim, call=False):
+                self.description.append(entry)
+
+    def set_record_func(self, recorder_dict):
+        """
+        Set or replace the recorder function and rebuild the description list.
+
+        Args:
+            recorder_dict (callable): Callable taking (sim, call=False|True) and returning descriptions or values.
+
+        Returns:
+            None
+        """
+        self.recorder_dict = recorder_dict
+
+        self.description = []
+        for entry in recorder_dict(self.sim, call=False):
+            self.description.append(entry)
+
+    def record_fun(self, sim):
+        """
+        Execute the recorder function and return a list of recorded entries.
+
+        Args:
+            sim (PowerSystemSimulation or TestBench): Simulation instance passed to the recorder.
+
+        Returns:
+            list: List of recorded tensor/value entries.
+        """
+        rec = []
+        for entry in self.recorder_dict(sim, call=True):
+            rec.append(entry)
+        return rec
+
+    def record_list(self):
+        """
+        Return the list of recorded data field descriptions.
+
+        Returns:
+            list: Description strings previously collected from the recorder function.
+        """
+        return self.description
+
+
+class TestBench(object):
+    """
+    Lightweight testbench for running and characterizing control elements.
+
+    The TestBench runs a collection of differential models with a provided
+    input function and collects outputs via a recorder function. It is mainly
+    used for controller or component inspection.
+
+    Attributes:
+        time (numpy.ndarray): Time vector for the test.
+        time_step (float): Time step (seconds).
+        diff_models (list): List of differential model instances.
+        input_func (callable): Function returning input values for each time.
+        record_func (callable): Recorder function used to collect outputs.
+        solver (Solver): Time integration solver used to step the models.
+        recorder (Recorder): Recorder instance configured for this testbench.
+    """
+
+    def __init__(
+        self,
+        time_step,
+        sim_time,
+        inspection_models,
+        input_func,
+        record_func,
+        solver="euler",
+        verbose=True,
+    ):
+        """
+        Initialize the TestBench.
+
+        Args:
+            time_step (float): Simulation time step (seconds).
+            sim_time (float): Total duration of the test (seconds).
+            inspection_models (list): List of tuples (model, init_dict) describing models to inspect.
+            input_func (callable): Function taking time and returning input to models.
+            record_func (callable): Recorder function used to collect outputs.
+            solver (str, optional): Solver key to select time integrator. Defaults to 'euler'.
+            verbose (bool, optional): If True, enable progress output.
+
+        Returns:
+            None
+        """
+        self.time = np.arange(0, sim_time + time_step, time_step)
+        self.time_step = time_step
+        self.t = 0
+
+        self.diff_models = []
+        self.init_dict = []
+        for i in range(len(inspection_models)):
+            self.diff_models.append(inspection_models[i][0])
+            self.init_dict.append(inspection_models[i][1])
+
+        self.input_func = input_func
+
+        self.solver = tb_solver_dict[solver]()
+
+        self.parallel_sims = 1
+        self.verbose = verbose
+        self.backend = BACKEND
+
+        self.recorder = Recorder(sim=self, recorder_dict=record_func)
+        self.record_func = self.recorder.record_fun
+
+    def initialize(self):
+        """
+        Initialize all differential models and enable batching.
+
+        Returns:
+            None
+        """
+        for i, model in enumerate(self.diff_models):
+            model.initialize(self.init_dict[i])
+            model.enable_parallel_simulation(self.parallel_sims)
+
+        self.enable_parallel_simulation(self.parallel_sims)
+
+    def record_list(self):
+        """
+        Return the list of recorded data descriptions from the recorder.
+
+        Returns:
+            list: Descriptions of recorded fields.
+        """
+        return self.recorder.record_list()
+
+    def set_record_func(self, record_func):
+        """
+        Set a custom recorder function for the TestBench.
+
+        Args:
+            record_func (callable): Recorder function compatible with Recorder.
+
+        Returns:
+            None
+        """
+        self.recorder.set_record_func(record_func)
+        self.record_func = record_func
+        return
+
+    def run_control_element(self):
+        """
+        Run the testbench for control element inspection.
+
+        The testbench repeatedly calls ``input_func`` and updates the
+        differential models. Outputs are collected by the configured recorder.
+
+        Returns:
+            tuple: (time_vector, recorded_tensor)
+        """
+        self.initialize()
+
+        start_time = time.time()
+
+        if self.verbose:
+            iterator = tqdm(self.time)
+        else:
+            iterator = self.time
+
+        # format should be [model, timestep, value]
+        recorder_list = []
+
+        for t in iterator:
+
+            input_val = self.input_func(t)
+
+            for model in self.diff_models:
+                model.get_output(input_val)
+
+            self.solver.step(self)
+
+            # Record the state of the system; all desired parameters
+            try:
+                recorder_list.append(torch.stack(self.record_func(self)))
+            except TypeError as e:
+                _logger.warning("No record function specified: %s", e)
+
+            self.t += self.time_step
+
+        # Format shall be [batch, timestep, value]
+        try:
+            return_tensor = torch.swapaxes(
+                torch.stack(recorder_list, axis=1), 0, 2
+            ).squeeze(-1)
+        except:
+            return_tensor = torch.stack(recorder_list, axis=1)
 
         if self.verbose:
             end_time = time.time()
@@ -599,3 +998,78 @@ class PowerSystemSimulation(object):
             )
 
         return self.time, return_tensor
+
+    def run_oltc_control(self):
+        """
+        Run the testbench with OLTC-style control elements.
+
+        Similar to ``run_control_element`` but supports chained/feedback inputs
+        between models. Returns the recorded outputs.
+
+        Returns:
+            tuple: (time_vector, recorded_tensor)
+        """
+        self.initialize()
+
+        start_time = time.time()
+
+        if self.verbose:
+            iterator = tqdm(self.time)
+        else:
+            iterator = self.time
+
+        # format should be [model, timestep, value]
+        recorder_list = []
+        model_return = torch.ones(np.shape(self.diff_models))
+
+        for t in iterator:
+
+            for i, model in enumerate(self.diff_models):
+                input_val = model_return[i] * self.input_func(t)
+                # model.update_vref(input_val)
+                model_return[i] = model.get_output(input_val)
+
+            self.solver.step(self)
+
+            # Record the state of the system; all desired parameters
+            try:
+                recorder_list.append(torch.stack(self.record_func(self)))
+            except TypeError as e:
+                _logger.warning("No record function specified: %s", e)
+
+            self.t += self.time_step
+
+        # Format shall be [batch, timestep, value]
+        try:
+            return_tensor = torch.swapaxes(
+                torch.stack(recorder_list, axis=1), 0, 2
+            ).squeeze(-1)
+        except:
+            return_tensor = torch.stack(recorder_list, axis=1)
+
+        if self.verbose:
+            end_time = time.time()
+            print(
+                "Dynamic simulation finished in {:.2f} seconds".format(
+                    end_time - start_time
+                )
+            )
+
+        return self.time, return_tensor
+
+    def enable_parallel_simulation(self, parallel_sims):
+        """
+        Enable parallel (batched) simulation for all contained models.
+
+        Args:
+            parallel_sims (int): Number of parallel simulations to run (batch size).
+
+        Returns:
+            None
+        """
+        for model in self.diff_models:
+            model.enable_parallel_simulation(parallel_sims)
+
+        self.time_step = (
+            torch.ones((parallel_sims, 1), dtype=torch.float64) * self.time_step
+        )

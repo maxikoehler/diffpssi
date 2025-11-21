@@ -9,7 +9,6 @@ sys.path.append(PF_PATH)
 try:
     import powerfactory
 except ImportError as e:
-    print()
     raise ImportError(
         "PowerFactory not found at: ",
         PF_PATH,
