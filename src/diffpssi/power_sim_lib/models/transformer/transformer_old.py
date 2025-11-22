@@ -4,12 +4,16 @@
 import torch
 
 from diffpssi.power_sim_lib.backend import *
-from diffpssi.power_sim_lib.models.static_models.static_model_interface import (
-    StaticModelInterface,
+
+# from diffpssi.power_sim_lib.models.static_models.static_model_interface import (
+#     StaticModelInterface,
+# )
+from diffpssi.power_sim_lib.models.transformer.transformer_interface import (
+    Transformer,
 )
 
 
-class Transformer_Old(StaticModelInterface):
+class Transformer_Old(Transformer):
     """
     Represent a transformer in the power system simulation.
 
@@ -27,6 +31,8 @@ class Transformer_Old(StaticModelInterface):
     def __init__(
         self,
         s_n_sys,
+        sim,
+        trans_model=None,
         param_dict=None,
         name=None,
         from_bus=None,
@@ -83,6 +89,10 @@ class Transformer_Old(StaticModelInterface):
 
         self.s_n_sys = s_n_sys
 
+        self.admittance_matrix = torch.zeros(
+            (sim.parallel_sims, 2, 2), dtype=torch.complex128
+        )
+
     def differential(self):
         """Get the differential equations of the transformer model (old)."""
         return torch.zeros((1, 1), dtype=torch.complex128)
@@ -108,12 +118,15 @@ class Transformer_Old(StaticModelInterface):
         )
         Y_off_diagonal = -1 / (self.r + 1j * self.x) * self.s_n / self.s_n_sys
 
+        self.admittance_matrix[:, 0, 0] = Y_diagonal.reshape(1, -1)
+        self.admittance_matrix[:, 0, 1] = Y_off_diagonal.reshape(1, -1)
+        self.admittance_matrix[:, 1, 0] = Y_off_diagonal.reshape(1, -1)
+        self.admittance_matrix[:, 1, 1] = Y_diagonal.reshape(1, -1)
+
         # if a return of the function is needed, return the y_matrix as well
         if return_need:
             # returning the admittance matrix
-            return torch.tensor(
-                [[Y_diagonal, Y_off_diagonal], [Y_off_diagonal, Y_diagonal]]
-            )
+            return self.admittance_matrix
 
     def calc_admittance_static(self, return_need=True) -> None:
         """
@@ -128,12 +141,15 @@ class Transformer_Old(StaticModelInterface):
         )
         Y_off_diagonal = -1 / (self.r + 1j * self.x) * self.s_n / self.s_n_sys
 
+        self.admittance_matrix[:, 0, 0] = Y_diagonal.reshape(1, -1)
+        self.admittance_matrix[:, 0, 1] = Y_off_diagonal.reshape(1, -1)
+        self.admittance_matrix[:, 1, 0] = Y_off_diagonal.reshape(1, -1)
+        self.admittance_matrix[:, 1, 1] = Y_diagonal.reshape(1, -1)
+
         # if a return of the function is needed, return the y_matrix as well
         if return_need:
             # returning the admittance matrix
-            return torch.tensor(
-                [[Y_diagonal, Y_off_diagonal], [Y_off_diagonal, Y_diagonal]]
-            )
+            return self.admittance_matrix
 
     def enable_parallel_simulation(self, parallel_sims):
         """
@@ -142,12 +158,6 @@ class Transformer_Old(StaticModelInterface):
         Args:
             parallel_sims (int): Number of parallel simulations.
         """
-        self.from_bus_id = (
-            torch.ones((parallel_sims, 1), dtype=torch.int32) * self.from_bus_id
-        )
-        self.to_bus_id = (
-            torch.ones((parallel_sims, 1), dtype=torch.int32) * self.to_bus_id
-        )
         self.r = torch.ones((parallel_sims, 1), dtype=torch.float64) * self.r
         self.x = torch.ones((parallel_sims, 1), dtype=torch.float64) * self.x
         self.v_n_from = (
@@ -197,6 +207,6 @@ class Transformer_Old(StaticModelInterface):
         else:
             raise ValueError("Invalid value parameter")
 
-    def initialize(self, from_voltage, to_voltage):
+    def initialize(self, from_voltage=None, to_voltage=None):
         """Initialize the transformer (old)."""
         pass

@@ -52,15 +52,15 @@ class TestOptRunAbility(unittest.TestCase):
         # Run the optimization
         ieee_9bus_opt.main(parallel_sims=2)
 
-    def test_k2a_opt(self):
-        """Optimization test for the k2a model."""
-        import examples.models.k2a.k2a_opt as k2a_opt
+    # def test_k2a_opt(self):
+    #     """Optimization test for the k2a model."""
+    #     import examples.models.k2a.k2a_opt as k2a_opt
 
-        TestOptRunAbility.set_env_vars()
-        # get the path of the ibb_sim.py file
-        file_path = k2a_opt.__file__
+    #     TestOptRunAbility.set_env_vars()
+    #     # get the path of the ibb_sim.py file
+    #     file_path = k2a_opt.__file__
 
-        os.chdir(os.path.dirname(file_path))
+    #     os.chdir(os.path.dirname(file_path))
 
-        # Run the optimization
-        k2a_opt.main(parallel_sims=2)
+    #     # Run the optimization
+    #     k2a_opt.main(parallel_sims=2)

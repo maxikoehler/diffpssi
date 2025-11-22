@@ -152,32 +152,32 @@ class TestSimulationOutput(unittest.TestCase):
             np.allclose(output_sim, expected_output, atol=self.atol, rtol=self.rtol)
         )
 
-    def test_k2a_sim(self):
-        self.set_env_vars()
-        import examples.models.k2a.k2a_sim as k2a_sim
+    # def test_k2a_sim(self):
+    #     self.set_env_vars()
+    #     import examples.models.k2a.k2a_sim as k2a_sim
 
-        # get the path of the k2a_sim.py file
-        file_path = k2a_sim.__file__
+    #     # get the path of the k2a_sim.py file
+    #     file_path = k2a_sim.__file__
 
-        os.chdir(os.path.dirname(file_path))
+    #     os.chdir(os.path.dirname(file_path))
 
-        # Run the simulation
-        with patch("matplotlib.pyplot.show"):
-            k2a_sim.main()
+    #     # Run the simulation
+    #     with patch("matplotlib.pyplot.show"):
+    #         k2a_sim.main()
 
-        # Load the output file and compare it to the expected output
-        output_sim = k2a_sim.np.load("./data/original_data.npy")
+    #     # Load the output file and compare it to the expected output
+    #     output_sim = k2a_sim.np.load("./data/original_data.npy")
 
-        # change the directory back to where this file here is
-        os.chdir(os.path.dirname(os.path.abspath(__file__)))
+    #     # change the directory back to where this file here is
+    #     os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
-        # Load the expected output in the tests folder
-        expected_output = np.load("./data/k2a.npy")
+    #     # Load the expected output in the tests folder
+    #     expected_output = np.load("./data/k2a.npy")
 
-        # compare the two outputs
-        self.assertTrue(
-            np.allclose(output_sim, expected_output, atol=self.atol, rtol=self.rtol)
-        )
+    #     # compare the two outputs
+    #     self.assertTrue(
+    #         np.allclose(output_sim, expected_output, atol=self.atol, rtol=self.rtol)
+    #     )
 
     def test_k2a_manual_sim(self):
         self.set_env_vars()

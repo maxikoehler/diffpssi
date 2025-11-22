@@ -19,7 +19,14 @@ class OLTC_Transformer(Transformer):
     """
 
     def __init__(
-        self, sim, s_n_sys, param_dict, oltc="oltc", trans_model="AM", parallel_sims=1
+        self,
+        sim,
+        s_n_sys,
+        param_dict,
+        parallel_sims,
+        oltc="oltc",
+        trans_model="AM",
+        name=None,
     ):
         """
         Initialize an OLTC_Transformer instance.

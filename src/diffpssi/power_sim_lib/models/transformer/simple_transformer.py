@@ -13,7 +13,7 @@ class Simple_Transformer(Transformer):
     """
 
     def __init__(
-        self, s_n_sys, param_dict, sim=None, trans_model="AM", parallel_sims=1
+        self, s_n_sys, param_dict, parallel_sims, sim, trans_model="AM", name=None
     ):
         """
         Initialize a Simple_Transformer instance.
@@ -25,7 +25,7 @@ class Simple_Transformer(Transformer):
             trans_model (str): Transformer model id.
             parallel_sims (int): Number of parallel simulations.
         """
-        super().__init__(s_n_sys, param_dict, trans_model, parallel_sims)
+        super().__init__(s_n_sys, param_dict, parallel_sims, sim, trans_model)
 
     def update_ratio(self):
         """

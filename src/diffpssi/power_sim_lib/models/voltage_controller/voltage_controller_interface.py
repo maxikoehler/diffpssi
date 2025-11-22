@@ -5,7 +5,6 @@ from math import floor
 
 from diffpssi.power_sim_lib.backend import *
 from diffpssi.power_sim_lib.models.blocks import DeadBand, Integrator, Lag, PT1Limited
-from diffpssi.power_sim_lib.models.static_models import Transformer_Old
 
 
 class Voltage_Controller(ABC):

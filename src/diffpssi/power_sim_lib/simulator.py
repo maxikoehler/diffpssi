@@ -100,7 +100,7 @@ class PowerSystemSimulation(object):
         self.trans_model = trans_model
 
         # Add timestep in the end because the first step does not have a value
-        self.time = np.arange(0, sim_time + time_step, time_step)
+        self.time = np.arange(0, sim_time, time_step)
         self.time_step = time_step
         self.t = 0
 
@@ -231,6 +231,7 @@ class PowerSystemSimulation(object):
             trans_type = transformer_dict.get("type", "simple")
             transformer_model = transformer_type_dict[trans_type](
                 sim=self,
+                parallel_sims=self.parallel_sims,
                 s_n_sys=self.base_mva,
                 trans_model=self.trans_model,
                 param_dict=transformer_dict,
@@ -461,6 +462,7 @@ class PowerSystemSimulation(object):
         """
         if True:
             # reconstruct the dynamic y_matrix
+            # y_matrix shape: (parallel_sims, n_busses, n_busses)
             dynamic_y_matrix = torch.zeros(
                 (self.parallel_sims, len(self.busses), len(self.busses)),
                 dtype=torch.complex128,
@@ -484,16 +486,16 @@ class PowerSystemSimulation(object):
                 trafo_adm = transformer.calc_admittance(return_need=True)
                 dynamic_y_matrix[
                     :, transformer.from_bus_id, transformer.to_bus_id
-                ] += trafo_adm[0, 1]
+                ] += trafo_adm[:, 0, 1]
                 dynamic_y_matrix[
                     :, transformer.to_bus_id, transformer.from_bus_id
-                ] += trafo_adm[1, 0]
+                ] += trafo_adm[:, 1, 0]
                 dynamic_y_matrix[
                     :, transformer.from_bus_id, transformer.from_bus_id
-                ] += trafo_adm[0, 0]
+                ] += trafo_adm[:, 0, 0]
                 dynamic_y_matrix[
                     :, transformer.to_bus_id, transformer.to_bus_id
-                ] += trafo_adm[1, 1]
+                ] += trafo_adm[:, 1, 1]
 
             # BUS section
             for i, bus in enumerate(self.busses):
@@ -519,6 +521,7 @@ class PowerSystemSimulation(object):
             # get the previously computed static y_matrix
             return self.static_y_matrix
         # reconstruct the static y_matrix
+        # y_matrix shape: (parallel_sims, n_busses, n_busses)
         static_y_matrix = torch.zeros(
             (self.parallel_sims, len(self.busses), len(self.busses)),
             dtype=torch.complex128,
@@ -538,18 +541,19 @@ class PowerSystemSimulation(object):
             ] += line.get_admittance_diagonal()
 
         for transformer in self.trafos:
+            trafo_adm = transformer.calc_admittance_static(return_need=True)
             static_y_matrix[
                 :, transformer.from_bus_id, transformer.to_bus_id
-            ] += transformer.calc_admittance_static(return_need=True)[0, 1]
+            ] += trafo_adm[:, 0, 1]
             static_y_matrix[
                 :, transformer.to_bus_id, transformer.from_bus_id
-            ] += transformer.calc_admittance_static(return_need=True)[1, 0]
+            ] += trafo_adm[:, 1, 0]
             static_y_matrix[
                 :, transformer.from_bus_id, transformer.from_bus_id
-            ] += transformer.calc_admittance_static(return_need=True)[0, 0]
+            ] += trafo_adm[:, 0, 0]
             static_y_matrix[
                 :, transformer.to_bus_id, transformer.to_bus_id
-            ] += transformer.calc_admittance_static(return_need=True)[1, 1]
+            ] += trafo_adm[:, 1, 1]
 
         for i, bus in enumerate(self.busses):
             for model in bus.models:

@@ -21,7 +21,9 @@ class Transformer(ABC):
         N/A: Instances are created via concrete subclasses.
     """
 
-    def __init__(self, s_n_sys, param_dict, trans_model="AM", parallel_sims=1):
+    def __init__(
+        self, s_n_sys, param_dict, parallel_sims, sim, trans_model="AM", name=None
+    ):
         """
         Initialize base transformer parameters.
 
@@ -73,7 +75,9 @@ class Transformer(ABC):
 
         self.theta = param_dict.get("theta", 0)
         self.u_l = param_dict.get("u_l", 1)
-        self.admittance_matrix = None
+        self.admittance_matrix = torch.zeros(
+            (parallel_sims, 2, 2), dtype=torch.complex128
+        )
         self.trans_model = trans_model
         self.parallel_sims = parallel_sims
 
@@ -105,9 +109,16 @@ class Transformer(ABC):
         # setting the new admittance matrix in correct bus relation
         # This determines, where the ratio theta is located
         if self.tap_side == self.from_bus:
-            self.admittance_matrix = torch.tensor([[y_11, y_12], [y_21, y_22]])
+            self.admittance_matrix[:, 0, 0] = y_11.reshape(1, -1)
+            self.admittance_matrix[:, 0, 1] = y_12.reshape(1, -1)
+            self.admittance_matrix[:, 1, 0] = y_21.reshape(1, -1)
+            self.admittance_matrix[:, 1, 1] = y_22.reshape(1, -1)
+            # self.admittance_matrix = torch.tensor([[y_11, y_12], [y_21, y_22]])
         elif self.tap_side != self.from_bus:
-            self.admittance_matrix = torch.tensor([[y_22, y_21], [y_12, y_11]])
+            self.admittance_matrix[:, 0, 0] = y_22.reshape(1, -1)
+            self.admittance_matrix[:, 0, 1] = y_21.reshape(1, -1)
+            self.admittance_matrix[:, 1, 0] = y_12.reshape(1, -1)
+            self.admittance_matrix[:, 1, 1] = y_11.reshape(1, -1)
 
         # if a return of the function is needed, return the y_matrix as well
         if return_need:
@@ -170,12 +181,6 @@ class Transformer(ABC):
         Returns:
             None: Attributes are modified in-place.
         """
-        self.from_bus_id = (
-            torch.ones((parallel_sims, 1), dtype=torch.int32) * self.from_bus_id
-        )
-        self.to_bus_id = (
-            torch.ones((parallel_sims, 1), dtype=torch.int32) * self.to_bus_id
-        )
         self.s_n = torch.ones((parallel_sims, 1), dtype=torch.float64) * self.s_n
         self.s_n_sys = (
             torch.ones((parallel_sims, 1), dtype=torch.float64) * self.s_n_sys
