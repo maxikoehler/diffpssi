@@ -1,46 +1,42 @@
 
-# diffpssi — Differential Power System Simulation Toolkit
+# DiffPSSi — Differential Power System Simulation Toolkit
 
-Lightweight, modular Python library for simulation, optimization and stability analysis of electric power systems. This repository contains the library itself (`src/diffpssi`), accompanying examples, validation notebooks, documentation and tests.
+> Some badges will come soon.
+
+Lightweight, modular Python library for simulation, optimization and stability analysis of electric power systems. This repository contains the library itself (`src/diffpssi`), accompanying examples, documentation and tests.
 
 ## Overview
 
-`diffpssi` provides tools to build and analyze power system models (power flow, stability, parametric studies). The project includes:
+DiffPSSi contains a framework designed for simulating and optimizing the dynamic behavior of power systems. The framework has two main benefits: 
 
-- Reusable model components under `src/diffpssi`.
-- Example scripts and model folders under `examples/` and `diffpssi.grid_library/`.
-- Documentation built with MkDocs in the `docs/` folder.
+1. Serve as a modular and relatively efficient dynamic power system simulation over which users have full control for research and educational purposes. 
+1. Enable the use of automatic differentiation for dynamic power system simulations. 
 
-The architecture is modular, allowing simulation, optimization and stability-analysis components to be used independently.
+Effectively, this allows for the calculation of gradients of all simulation parameters with respect to a desired output of the simulation. This is useful for parameter optimization or identification or integration of neural networks into the simulation.
 
-## Key features
+It includes detailed models of various power system components such as synchronous machines, exciters, governors, and power system stabilizers. The toolkit is built in Python and leverages the power of libraries like numpy efficient computation, and torch for automatic differentiation.
 
-- Power-flow and stability analyses
-- Parametric studies (e.g. variation of load, transformer parameters)
-- Example models (IEEE test systems, user-defined models)
-- Tools for result visualization (notebooks & plotting scripts)
+The code is strongly based on this repository, but required a rewrite to enable the gradient calculation for optimization purposes. The code is still under development and will be extended in the future.
 
-## Requirements
+> Note: This repository is still under development and will be extended in the future. Use at your own risk.
 
-- Python 3.10+ (tested with Python 3.10 to 3.14)
+## Features
+
+- Inherently Parallel Implementation: A unique and important feature of this simulation framework, as it allows the execution of multiple simulations in parallel by using vectors of parameters for every element.
+- Dynamic Simulation: Allows for detailed dynamic simulations of power systems, including interactions between various components.
+- Extensible Model Library: Contains models of AVRs, governors, stabilizers, static models like lines, loads, transformers, and more.
+- Backend Flexibility: Choose between torch and numpy as backend for computations.
+- Solver Options: Includes Euler and Runge Kutta methods for numerical integration.
+
+## Requirements and Installation
+
+- Python 3.11+ (tested with Python 3.11 to 3.14)
 - A standard Python package manager (pip)
 - Optional: Jupyter for notebooks, MkDocs for documentation
 
 Exact dependencies are listed in `pyproject.toml` and the documentation requirements.
 
-## Installation
-
-Recommended: create a virtual environment and install the package in editable mode:
-
-```bash
-python -m venv .venv
-source .venv/bin/activate    # for zsh / bash on macOS/Linux
-pip install --upgrade pip
-pip install -e .
-```
-
-Additional packages may be required for documentation and notebooks (see `docs/` and `pyproject.toml`).
-For development work on the project, it is recommended to follow the instructions in `CONTRIBUTING.md`.
+For finding the suitable installation method, please see `INSTALLATION.md` and `CONTRIBUTING.md`.  
 
 ## Quickstart — minimal example
 
@@ -61,20 +57,40 @@ For full CI or environment tests, `tox` is configured (`tox.ini`).
 
 ## Documentation
 
-User and API documentation is located in the `docs/` folder and can be built locally with MkDocs:
+For an introductory explanation of how dynamic power system simulations work in principle, refer to the article: ["Watts Up with Dynamic Power System Simulations"](https://medium.com/@georg.kordowich/watts-up-with-dynamic-power-system-simulations-c0f16fc99769).
+
+You can get the latest version of DiffPSSi via cloning this repository.
 
 ```bash
-pip install mkdocs mkdocs-material  # optional
-mkdocs serve
+$ git clone git@github.com:maxikoehler/diffpssi.git
 ```
 
-Then open http://127.0.0.1:8000 to view the documentation.
+User and API documentation is located in the `docs/` folder and can be built locally with MkDocs.
+After cloning and installing the package in the development version (see `INSTALLATION.md`), activate the virtual environment and serve the documentation via ``mkdocs``.
 
-## Examples & notebooks
+```bash
+$ .venv/Source/activate  # for Windows
+$ source .venv/bin/activate # for Linux / MacOS 
 
-- `development_files/` — case studies and analysis notebooks
-- `validation/` — validation notebooks and datasets
-- `examples/` and `private_examples/` — runnable scripts with model data
+$ mkdocs serve
+```
+
+Then open http://127.0.0.1:8000 to view the documentation interactively.
+
+## Structure of the Package
+
+- `examples/`: runnable scripts with model data
+- `src/diffpssi/`:
+    - `grid_library/`: Contains a set of example network configurations.
+    - `optimization_lib/`: Includes optimizers and tools for gradient computation.
+    - `power_sim_lib/`: Core library with various submodules: 
+        - `models`: Models for AVRs, governors, stabilizers, etc.
+        - `load_flow`: Tools for load flow analysis.
+        - `simulator`: The core simulation class.
+        - `solvers`: Numerical solvers for integration.
+    - `stability_lib/`: Methods and calculation indices for stability analysis of the system. 
+- `tests/`: Contains tests for integration and ensuring validity against known PSS software (e.g. DIgSILENT PowerFactory)
+
 
 ## Contributing
 
@@ -84,14 +100,25 @@ Contributions are welcome. Please follow the guidelines in `CONTRIBUTING.md`. Sh
 2. Add tests for your changes
 3. Open a pull request against the `development` branch
 
-## License and citation
+## License and Citation
 
-This project is licensed under the terms shown in the `LICENSE` file. The project may be used for academic purposes — please cite the following work(s):
+This project is licensed under the terms shown in the `LICENSE` file. The project may be used for academic purposes — please cite the following [work(s)](https://doi.org/10.30420/566464032):
 
 ```bibtex
-
+@INPROCEEDINGS{10926572,
+  author={Kordowich, Georg and Jaeger, Johann},
+  booktitle={NEIS 2024; Conference on Sustainable Energy Supply and Energy Storage Systems}, 
+  title={An Accessible PyTorch Implementation of Automatic Differentiation for Power System Model Parameter Identification and Optimization}, 
+  year={2024},
+  volume={},
+  number={},
+  pages={231-236},
+  keywords={},
+  doi={10.30420/566464032}
+}
 ```
 
-## Contact & support
+## Contact & Support
 
 For questions, please open an issue or contact the maintainers via the repository.
+If requested and needed, please feel to [contact](https://www.ees.tf.fau.de/faudir/georg-kordowich/).
