@@ -4,8 +4,8 @@ import examples.models.ibb_with_controllers.ibb_wc_model as mdl
 import matplotlib.pyplot as plt
 import numpy as np
 
-from src.diffpssi.power_sim_lib.backend import *
-from src.diffpssi.power_sim_lib.simulator import PowerSystemSimulation as Pss
+from diffpssi.power_sim_lib.backend import *
+from diffpssi.power_sim_lib.simulator import PowerSystemSimulation as Pss
 
 
 def record_desired_parameters(simulation):

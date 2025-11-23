@@ -4,7 +4,7 @@ import examples.models.ibb_model.ibb_model as mdl
 import matplotlib.pyplot as plt
 import numpy as np
 
-from src.diffpssi.power_sim_lib.simulator import PowerSystemSimulation as Pss
+from diffpssi.power_sim_lib.simulator import PowerSystemSimulation as Pss
 
 
 def record_desired_parameters(simulation):
@@ -49,7 +49,9 @@ def main():
         plt.plot(t, recorder[0, :, i].real)
         plt.ylabel("Parameter {}".format(i))
         plt.xlabel("Time [s]")
-    plt.show()
+    # plt.show()
+
+    plt.close()
 
     np.save("./data/original_data.npy", recorder[0].real)
 

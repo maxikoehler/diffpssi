@@ -5,7 +5,7 @@ The solvers are used to integrate the differential equations of the power system
 
 import logging
 
-from src.diffpssi.power_sim_lib.backend import *
+from diffpssi.power_sim_lib.backend import *
 
 _logger = logging.getLogger(__name__)
 

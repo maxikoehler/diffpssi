@@ -23,8 +23,18 @@ def load():
             ["Line 1", "Bus 0", "Bus 1", 1, "p.u.", 0, 0.22, 0],
         ],
         "transformers": [
-            ["name", "from_bus", "to_bus", "S_n", "V_n_from", "V_n_to", "R", "X"],
-            ["T1", "Bus 1", "Bus 2", 2200, 100, 10, 0, 0.15],
+            [
+                "name",
+                "type",
+                "from_bus",
+                "to_bus",
+                "S_n",
+                "V_n_from",
+                "V_n_to",
+                "R",
+                "X",
+            ],
+            ["T1", "simple", "Bus 1", "Bus 2", 2200, 100, 10, 0, 0.15],
         ],
         "generators": {
             "GEN": [

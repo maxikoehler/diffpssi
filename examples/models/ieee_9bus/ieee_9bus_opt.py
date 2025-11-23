@@ -1,11 +1,13 @@
 """This example demonstrates how to use the PowerSystemOptimization class to optimize the parameters of a power system model."""
 
+import os
+
 import examples.models.ieee_9bus.ieee_9bus_model as mdl
 import numpy as np
 import torch
 
-from src.diffpssi.optimization_lib.ps_optimization import PowerSystemOptimization
-from src.diffpssi.power_sim_lib.simulator import PowerSystemSimulation
+from diffpssi.optimization_lib.ps_optimization import PowerSystemOptimization
+from diffpssi.power_sim_lib.simulator import PowerSystemSimulation
 
 np.random.seed(0)
 
@@ -217,7 +219,7 @@ def main(parallel_sims=1000):
     # mute sim because it does not generate added value
     sim.verbose = False
 
-    original_data = np.load("data/original_data.npy")
+    original_data = np.load("./data/original_data.npy")
     orig_tensor = torch.tensor(original_data) * torch.ones(
         (parallel_sims,) + original_data.shape
     )

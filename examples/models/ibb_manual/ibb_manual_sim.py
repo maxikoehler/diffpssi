@@ -5,9 +5,9 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 
-from src.diffpssi.power_sim_lib.models.static_models import *
-from src.diffpssi.power_sim_lib.models.synchronous_machine import SynchMachine
-from src.diffpssi.power_sim_lib.simulator import PowerSystemSimulation as Pss
+from diffpssi.power_sim_lib.models.static_models import *
+from diffpssi.power_sim_lib.models.synchronous_machine import SynchMachine
+from diffpssi.power_sim_lib.simulator import PowerSystemSimulation as Pss
 
 
 def record_desired_parameters(simulation):

@@ -4,7 +4,7 @@ import examples.models.ibb_transformer.ibb_trans_model as mdl
 import matplotlib.pyplot as plt
 import numpy as np
 
-from src.diffpssi.power_sim_lib.simulator import PowerSystemSimulation as Pss
+from diffpssi.power_sim_lib.simulator import PowerSystemSimulation as Pss
 
 
 def record_desired_parameters(simulation):
@@ -27,7 +27,7 @@ def record_desired_parameters(simulation):
 
 def main():
     """Simuliert das IBB-Transformator-Modell und speichert die Ergebnisse."""
-    parallel_sims = 1
+    parallel_sims = 3
 
     sim = Pss(
         parallel_sims=parallel_sims,
@@ -51,7 +51,9 @@ def main():
         plt.ylabel("Parameter {}".format(i))
         plt.xlabel("Time [s]")
 
-    plt.show()
+    # plt.show()
+
+    plt.close()
 
     np.save("data/original_data.npy", recorder[0].real)
 

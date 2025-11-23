@@ -3,12 +3,13 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-from src.diffpssi.power_sim_lib.models.exciters import SEXS
-from src.diffpssi.power_sim_lib.models.governors import TGOV1
-from src.diffpssi.power_sim_lib.models.stabilizers import STAB1
-from src.diffpssi.power_sim_lib.models.static_models import *
-from src.diffpssi.power_sim_lib.models.synchronous_machine import SynchMachine
-from src.diffpssi.power_sim_lib.simulator import PowerSystemSimulation as Pss
+from diffpssi.power_sim_lib.models.exciters import SEXS
+from diffpssi.power_sim_lib.models.governors import TGOV1
+from diffpssi.power_sim_lib.models.stabilizers import STAB1
+from diffpssi.power_sim_lib.models.static_models import *
+from diffpssi.power_sim_lib.models.synchronous_machine import SynchMachine
+from diffpssi.power_sim_lib.models.transformer import Simple_Transformer
+from diffpssi.power_sim_lib.simulator import PowerSystemSimulation as Pss
 
 
 def record_desired_parameters(simulation):
@@ -199,55 +200,73 @@ def main():
     )
 
     sim.add_transformer(
-        Transformer(
-            name="T1",
-            from_bus="B1",
-            to_bus="B5",
-            s_n=900,
-            v_n_from=20,
-            v_n_to=230,
-            r=0,
-            x=0.15,
+        Simple_Transformer(
             s_n_sys=900,
+            parallel_sims=parallel_sims,
+            sim=sim,
+            param_dict={
+                "name": "T1",
+                "from_bus": "B1",
+                "to_bus": "B5",
+                "S_n": 900,
+                "V_n_from": 20,
+                "V_n_to": 230,
+                "R": 0,
+                "X": 0.15,
+            },
+        )
+    )
+
+    sim.add_transformer(
+        Simple_Transformer(
+            s_n_sys=900,
+            parallel_sims=parallel_sims,
+            sim=sim,
+            param_dict={
+                "name": "T2",
+                "from_bus": "B2",
+                "to_bus": "B6",
+                "S_n": 900,
+                "V_n_from": 20,
+                "V_n_to": 230,
+                "R": 0,
+                "X": 0.15,
+            },
         )
     )
     sim.add_transformer(
-        Transformer(
-            name="T2",
-            from_bus="B2",
-            to_bus="B6",
-            s_n=900,
-            v_n_from=20,
-            v_n_to=230,
-            r=0,
-            x=0.15,
+        Simple_Transformer(
             s_n_sys=900,
+            parallel_sims=parallel_sims,
+            sim=sim,
+            param_dict={
+                "name": "T3",
+                "from_bus": "B3",
+                "to_bus": "B11",
+                "S_n": 900,
+                "V_n_from": 20,
+                "V_n_to": 230,
+                "R": 0,
+                "X": 0.15,
+            },
         )
     )
+
     sim.add_transformer(
-        Transformer(
-            name="T3",
-            from_bus="B3",
-            to_bus="B11",
-            s_n=900,
-            v_n_from=20,
-            v_n_to=230,
-            r=0,
-            x=0.15,
+        Simple_Transformer(
             s_n_sys=900,
-        )
-    )
-    sim.add_transformer(
-        Transformer(
-            name="T4",
-            from_bus="B4",
-            to_bus="B10",
-            s_n=900,
-            v_n_from=20,
-            v_n_to=230,
-            r=0,
-            x=0.15,
-            s_n_sys=900,
+            parallel_sims=parallel_sims,
+            sim=sim,
+            param_dict={
+                "name": "T4",
+                "from_bus": "B4",
+                "to_bus": "B10",
+                "S_n": 900,
+                "V_n_from": 20,
+                "V_n_to": 230,
+                "R": 0,
+                "X": 0.15,
+            },
         )
     )
 

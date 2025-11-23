@@ -4,7 +4,7 @@ import examples.models.ieee_9bus.ieee_9bus_model as mdl
 import matplotlib.pyplot as plt
 import numpy as np
 
-from src.diffpssi.power_sim_lib.simulator import PowerSystemSimulation as Pss
+from diffpssi.power_sim_lib.simulator import PowerSystemSimulation as Pss
 
 
 def record_desired_parameters(simulation):
@@ -40,7 +40,7 @@ def main(parallel_sims=1):
         parallel_sims=parallel_sims,
         sim_time=5,
         time_step=0.005,
-        solver="heun",
+        solver="rk4",
         grid_data=mdl.load(),
     )
 
