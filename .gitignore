@@ -27,3 +27,6 @@ env
 *.png
 *.pdf
 *.csv
+
+# Ignore mkdocs site build
+/site/

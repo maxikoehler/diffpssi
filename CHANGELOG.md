@@ -22,17 +22,36 @@ The format is based on "Keep a Changelog" and this project follows [Semantic Ver
 - —
 
 ---
-## [0.1.0] - 2025-11-16
+## [0.0.4] - tbd.
+
 **Added**
 
-- Project skeleton and core modules (see `src/`).
-- Example models and simulations under `examples/`.
-- Basic documentation scaffolding (`mkdocs.yaml`, `docs/`).
+- Added transformer models: simple Pi-kmodel, OLTC transformer
+- Transformer tap changer control schemes
+- Project set-up with poetry, added linting, documentation, CONTRIBUTING, INSTALLATION, etc.
 
 **Changed**
 
-- Reformatted `mkdocs.yaml` to fix YAML indentation issues reported by MkDocs.
+- Recoder function definition: interconnection with parameter description
 
 **Fixed**
 
-- Removed tab characters from `mkdocs.yaml` which caused parsing errors.
+- Problems with wildcard backend import
+
+## [0.0.3] - 2024-01-31
+
+**Added**
+
+**Changed**
+
+**Fixed**
+ 
+## [0.0.2] - 2024-01-31
+
+**Added**
+
+**Changed**
+
+**Fixed**
+
+## [0.0.1] - skipped

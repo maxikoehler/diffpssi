@@ -15,29 +15,17 @@ Example:
 
 ```bash
 # from your local clone of your fork
-git checkout development
-git pull upstream development   # if you have an upstream remote configured
-git checkout -b feature/my-change
+$ git checkout development
+$ git pull upstream development   # if you have an upstream remote configured
+$ git checkout -b feature/my-change
 ```
 
 ## 2. Setting up the development environment
 
-We recommend using a virtual environment (venv or conda). Check `pyproject.toml` for
-the supported Python version.
+We recommend using a virtual environment (venv). Check `pyproject.toml` for
+the supported Python version. Further this project uses Poetry in the version 2.1.4 as package manager.
 
-Example using venv:
-
-```bash
-python -m venv .venv
-source .venv/bin/activate    # macOS / Linux (zsh, bash)
-pip install --upgrade pip
-# Install the package in editable mode (and developer extras if provided)
-pip install -e .
-# Or if dev extras exist: pip install -e .[dev]
-```
-
-If the repository contains `requirements.txt` or `docs/requirements.md`, install
-additional packages as required.
+For installation see `INSTALLATION.md` in the developers version. Don't forget to install pre-commit hooks.
 
 ## 3. Running tests
 
@@ -46,13 +34,13 @@ Unit and integration tests live in the `tests/` directory.
 Run tests directly with pytest:
 
 ```bash
-pytest -q
+$ pytest
 ```
 
-Or use tox (if configured):
+Or use tox (if configured; `-r` for re-creating environments) also to check against multiple Python versions:
 
 ```bash
-tox
+$ tox
 ```
 
 If tests fail, include failing logs in the PR or open an issue for help.
@@ -63,31 +51,27 @@ Before committing, please run the following checks:
 
 - Formatting: black
 - Import sorting: isort
-- Static types: mypy
-- Linting: flake8
+- Ensuring Docstrings: pydocstyle
+<!-- - Static types: mypy
+- Linting: pylint -->
 
 Example commands:
 
 ```bash
-black src/ tests/
-isort src/ tests/
-flake8
-mypy src/
+$ black src/ tests/
+$ isort src/ tests/
+$ pydocstyle src/
 ```
-
-If pre-commit hooks are configured, use them (see below).
 
 ## 5. Documentation and examples
 
 Project documentation is built with MkDocs (see `mkdocs.yaml`). To preview docs locally:
 
 ```bash
-pip install mkdocs mkdocs-material
 mkdocs serve
 ```
 
-Example scripts and notebooks are under `examples/` and `development_files/`. Use the same
-virtual environment for running notebooks.
+Example scripts and notebooks are under `examples/`. Use the same virtual environment for running notebooks.
 
 ## 6. Commit & Pull Request workflow
 
@@ -131,9 +115,3 @@ Add a changelog entry for visible behavior or API changes. The repository contai
 ## 11. Questions
 
 If in doubt, open an issue or comment on the PR to ask maintainers for guidance.
-
----
-
-Would you like me to also add an example `requirements-dev.txt` or a pre-commit config
-file to the repo? If so, tell me which linters/formatters you prefer and I can add them.
-
