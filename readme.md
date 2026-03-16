@@ -1,7 +1,9 @@
 
 # DiffPSSi — Differential Power System Simulation Toolkit
 
-> Some badges will come soon.
+<a href="https://creativecommons.org/licenses/by-sa/4.0/">
+  <img src="https://mirrors.creativecommons.org/presskit/buttons/88x31/png/by-sa.png" width="58"/>
+</a>
 
 Lightweight, modular Python library for simulation, optimization and stability analysis of electric power systems. This repository contains the library itself (`src/diffpssi`), accompanying examples, documentation and tests.
 
@@ -241,7 +243,15 @@ Contributions are welcome. Please follow the guidelines in `CONTRIBUTING.md`. Sh
 
 ## License and Citation
 
-This project is licensed under the terms shown in the `LICENSE` file. The project may be used for academic purposes — please cite the following [work(s)](https://doi.org/10.30420/566464032):
+<a href="https://creativecommons.org/licenses/by-sa/4.0/">
+  <img src="https://mirrors.creativecommons.org/presskit/buttons/88x31/png/by-sa.png" width="100"/>
+</a>
+
+<p xmlns:cc="http://creativecommons.org/ns#" xmlns:dct="http://purl.org/dc/terms/"> <span property="dct:title">DiffPSSi</span> by <span property="cc:attributionName">Georg Kordowich</span> is licensed under <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/?ref=chooser-v1" target="_blank" rel="license noopener noreferrer" style="display:inline-block;">CC BY-SA 4.0</a>.</p>
+
+This license requires that reusers give credit to the creator. It allows reusers to distribute, remix, adapt, and build upon the material in any medium or format. If others modify or adapt the material, they must license the modified material under identical terms.
+
+Feel free to use this project within the license frame with the given citation.
 
 ```bibtex
 @INPROCEEDINGS{10926572,

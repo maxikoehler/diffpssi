@@ -17,6 +17,7 @@ from diffpssi.tools.colors import (
 def set_matplot_settings(
     font_family="Charter",
     font_size=14,
+    **kwargs,
 ):
     """Set custom matplotlib settings, standard for the diffpssi package.
 
@@ -31,6 +32,7 @@ def set_matplot_settings(
             "figure.autolayout": True,
             "text.usetex": True,
             "text.latex.preamble": r"\usepackage{amsmath}",
+            **kwargs,
         }
     )
     mpl.rcParams["axes.prop_cycle"] = mpl.cycler(

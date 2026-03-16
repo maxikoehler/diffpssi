@@ -96,8 +96,9 @@ class PIController(Block):
         Returns:
             The desired input to the model.
         """
+        self.out_wish = out_wish
         self.state_1 = out_wish / self.k_i
-        return torch.zeros_like(out_wish)
+        return out_wish
 
     def enable_parallel_simulation(self, parallel_sims):
         """
@@ -111,3 +112,10 @@ class PIController(Block):
         self.state_1 = (
             torch.ones((parallel_sims, 1), dtype=torch.float64) * self.state_1
         )
+
+    def reset(self):
+        """
+        Reset the PI controller to its initial state.
+        """
+        self.input = torch.zeros_like(self.input)
+        self.state_1 = self.out_wish * torch.ones_like(self.state_1) / self.k_i

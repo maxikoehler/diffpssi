@@ -25,12 +25,6 @@ class OLTC_Discrete(Voltage_Controller):
         trafo=None,
         param_dict=None,
         parallel_sims=1,
-        t_1=5,
-        db=0.05,
-        delta_m=0.02,
-        m_max=1.1,
-        m_min=0.9,
-        v_ref=1,
     ):
         """
         Initialize a discrete single-module OLTC controller.
@@ -41,45 +35,30 @@ class OLTC_Discrete(Voltage_Controller):
             param_dict (dict, optional): Parameter dictionary. If omitted the
                 individual keyword arguments are used to build a default
                 parameter set. Expected keys: ``t_1``, ``db``, ``delta_m``,
-                ``m_max``, ``m_min``, ``v_ref``.
+                ``m_max``, ``m_min``, ``v_ref``, ``pt_1``.
             parallel_sims (int): Number of parallel simulations (default: 1).
-            t_1 (float): Integrator limiter / switching time window (default: 5).
-            db (float): Deadband width (default: 0.05).
-            delta_m (float): Tap step magnitude (default: 0.02).
-            m_max (float): Maximum tap multiplier (default: 1.1).
-            m_min (float): Minimum tap multiplier (default: 0.9).
-            v_ref (float): Reference voltage (default: 1).
 
         Returns:
             None
         """
-        if param_dict is None:
-            param_dict = {
-                "t_1": t_1,
-                "db": db,
-                "delta_m": delta_m,
-                "m_max": m_max,
-                "m_min": m_min,
-                "v_ref": v_ref,
-            }
-
         self.name = name
         self.trafo = trafo
 
-        self.db = param_dict["db"]  # Dead band range
-        self.delta_m = param_dict["delta_m"]  # Tap changing rate
-        self.m_max = param_dict["m_max"]
-        self.m_min = param_dict["m_min"]
-        self.t_1 = param_dict["t_1"]
-        self.pt1_const = param_dict.get(
-            "pt_1", 0
-        )  # time constant for measurement filter
+        # Intialize parameters
+        self.db = param_dict.get("db", 0.05)  # Dead band range
+        self.delta_m = param_dict.get("delta_m", 0.02)  # Tap changing rate
+        self.m_max = param_dict.get("m_max", 1.1)
+        self.m_min = param_dict.get("m_min", 0.9)
+        self.t_1 = param_dict.get("t_1", 5)
+        self.pt1_const = param_dict.get("pt_1", 0)
+        self.gain_pt1 = param_dict.get("gain_pt1", 1)
+        self.time_sensitive = param_dict.get("time_sensitive", False)
 
-        # Was ist mit nicht passenden Zahlen, sodass nicht integer werte in der Rechnung auftreten?
+        # Initilize internal variables / states
         self.n_taps = int((self.m_max - self.m_min) / self.delta_m)  # number of taps
         self.taps = torch.arange(0, self.n_taps, 1)  # tap positions
         self.tap_pos_m = param_dict.get(
-            "tap_pos_m", int(self.n_taps / 2)
+            "tap_pos_m", self.n_taps // 2
         )  # initial tap position
         self.u_l = self.m_min + self.tap_pos_m * self.delta_m  # initial oltc ratio
         self.m = 0  # tap change signal
@@ -88,17 +67,18 @@ class OLTC_Discrete(Voltage_Controller):
         self.v_measure = 0
         self.integ = 0
         self.dir = 1
+        self.v_ref = param_dict.get("v_ref", 1.0)
 
+        # Initialize internal blocks / further controller components
         if self.pt1_const != 0:
-            self.pt1 = PT1Limited(t_pt1=self.pt1_const, gain_pt1=1)
+            self.pt1 = PT1Limited(
+                t_pt1=self.pt1_const, gain_pt1=self.gain_pt1, lim_min=0, lim_max=2
+            )
         else:
             self.pt1 = None
         self.deadband = DeadBand(self.db)
-        self.integrator_m = Integrator(k_i=1, limiter=t_1)
+        self.integrator_m = Integrator(k_i=1, limiter=self.t_1)
 
-        self.v_ref = param_dict[
-            "v_ref"
-        ]  # reference voltage for the controller; typically set at the beginning load flow analysis
         self.parallel_sims = parallel_sims
 
     def get_state_vector(self):
@@ -142,36 +122,63 @@ class OLTC_Discrete(Voltage_Controller):
         Returns:
             torch.Tensor or float: New tap ratio ``u_l`` after potential switching.
         """
-        # Add possible filter for the measurements... -> PT1 block
+        # Possible filter for measurements device delay. -> PT1 block
         if self.pt1 is not None:
             self.v_measure = self.pt1.get_output(torch.abs(vbb))
         else:
             self.v_measure = torch.abs(vbb)
 
-        self.v_diff = torch.abs(self.v_ref) - torch.abs(
-            vbb
-        )  # * torch.ones((self.parallel_sims, 1), dtype=torch.float64)
+        self.v_diff = torch.abs(self.v_ref) - torch.abs(self.v_measure)
 
         v_dead_prev = self.v_dead
         self.v_dead = self.deadband.get_output(self.v_diff)
 
-        # reset the integrator, if the v_diff falls under the deadband (could as well be == 0)
+        # reset the integrator, if the v_diff falls under the deadband
         # OR if the sign suddenly changing
-        if torch.abs(self.v_dead) == torch.zeros_like(self.v_dead):
-            self.integrator_m.reset()
-        elif torch.sign(self.v_dead) != torch.sign(v_dead_prev):
-            self.integrator_m.reset()
+        reset_factor = torch.where(
+            torch.logical_or(
+                torch.abs(self.v_dead) == torch.zeros_like(self.v_dead),
+                torch.sign(self.v_dead) != torch.sign(v_dead_prev),
+            ),
+            0 * torch.ones((self.parallel_sims, 1), dtype=torch.float64),
+            1 * torch.ones((self.parallel_sims, 1), dtype=torch.float64),
+        )
+        self.integrator_m.state_1 = self.integrator_m.state_1 * reset_factor
+        self.integrator_m.input = self.integrator_m.input * reset_factor
 
-        self.integ = self.integrator_m.get_output(
-            torch.abs(torch.sign(self.v_diff))
-        )  # * torch.ones((self.parallel_sims, 1))) # or v_dead/self.v_diff for variable gain
+        if self.time_sensitive:
+            self.integ = self.integrator_m.get_output(
+                torch.abs(self.v_dead * self.t_1 * 3)
+                # Factor 3 common in literature like Milano
+            )
+        else:
+            self.integ = self.integrator_m.get_output(
+                torch.abs(torch.sign(self.v_dead))
+            )
 
-        if self.integ > self.t_1:
-            # reset the integrator after the switching operation mandatory for remaining operatbility of t_1 s window
-            # if the deadband is continuously overstepped for more than t_1 s, switching operation is triggered
-            self.m = self.switching(self.dir * self.v_diff)
-            self.integrator_m.reset()
-            self.u_l += self.delta_m * self.m
+        # Perform element-wise switching when integrator reaches threshold
+        switch_mask = self.integ >= self.t_1
+        switched = self.switching(self.dir * self.v_diff, switch_mask)
+        # self.m = torch.where(
+        #     switch_mask,
+        #     torch.zeros((self.parallel_sims, 1), dtype=torch.float64)
+        # )
+        reset_factor = torch.where(
+            switched,
+            0,
+            1,
+        )
+        self.integrator_m.state_1 = self.integrator_m.state_1 * reset_factor
+        self.integrator_m.input = self.integrator_m.input * reset_factor
+        # Reset integrator where switching occurred
+        # for i in range(self.parallel_sims):
+        #     if switch_mask[i]:
+        #         self.integrator_m.reset()
+
+        # Update tap ratio element-wise
+        self.u_l = torch.where(
+            switched, self.m_min + self.delta_m * self.tap_pos_m, self.u_l
+        )
 
         return self.u_l
 
@@ -219,6 +226,7 @@ class OLTC_Discrete(Voltage_Controller):
         self.delta_m = (
             torch.ones((parallel_sims, 1), dtype=torch.float64) * self.delta_m
         )
+        self.taps = torch.ones((parallel_sims, 1), dtype=torch.float64) * self.taps
         self.m_max = torch.ones((parallel_sims, 1), dtype=torch.float64) * self.m_max
         self.m_min = torch.ones((parallel_sims, 1), dtype=torch.float64) * self.m_min
         self.n_taps = torch.ones((parallel_sims, 1), dtype=torch.float64) * self.n_taps
@@ -230,6 +238,7 @@ class OLTC_Discrete(Voltage_Controller):
         self.v_measure = (
             torch.ones((parallel_sims, 1), dtype=torch.float64) * self.v_measure
         )
+        self.v_dead = torch.ones((parallel_sims, 1), dtype=torch.float64) * self.v_dead
         self.u_l = torch.ones((parallel_sims, 1), dtype=torch.float64) * self.u_l
 
     def initialize(self, voltage):
@@ -263,7 +272,7 @@ class OLTC_Discrete(Voltage_Controller):
         self.v_ref = voltage
         return
 
-    def switching(self, v_diff):
+    def switching(self, v_diff, switch_mask):
         """
         Determine discrete switching action based on the voltage difference.
 
@@ -277,14 +286,56 @@ class OLTC_Discrete(Voltage_Controller):
         Returns:
             torch.Tensor: Tap change step(s) applied (per parallel simulation).
         """
-        if v_diff > 0 and self.tap_pos_m > self.taps[0]:
-            m = -1 * torch.ones((self.parallel_sims, 1), dtype=torch.float64)
-            self.tap_pos_m -= torch.ones((self.parallel_sims, 1), dtype=torch.float64)
-        elif v_diff < 0 and self.tap_pos_m <= self.taps[-1]:
-            m = 1 * torch.ones((self.parallel_sims, 1), dtype=torch.float64)
-            self.tap_pos_m += torch.ones((self.parallel_sims, 1), dtype=torch.float64)
+        # determine switching direction
 
-        else:
-            m = torch.zeros((self.parallel_sims, 1), dtype=torch.float64)
+        a = torch.where(
+            torch.logical_and(
+                torch.logical_and(
+                    v_diff < 0, self.tap_pos_m < self.taps[:, -1].reshape(-1, 1)
+                ),
+                switch_mask,
+            ),
+            1 * torch.ones((1), dtype=torch.float64),
+            torch.zeros((1)),
+        )
+        b = torch.where(
+            torch.logical_and(
+                torch.logical_and(
+                    v_diff > 0, self.tap_pos_m > self.taps[:, 0].reshape(-1, 1)
+                ),
+                switch_mask,
+            ),
+            -1 * torch.ones((1), dtype=torch.float64),
+            torch.zeros((1)),
+        )
+        m = torch.where(
+            a != 0,
+            a,
+            torch.where(
+                b != 0,
+                b,
+                torch.zeros((1)),
+            ),
+        )
 
-        return m
+        switched = torch.where(m != 0, True, False)
+
+        self.tap_pos_m = self.tap_pos_m + m
+
+        return switched
+
+    def reset(self):
+        """
+        Reset the controller to its initial state.
+
+        Returns:
+            None
+        """
+        # self.tap_pos_m = int(self.n_taps / 2)
+        self.u_l = self.m_min + self.tap_pos_m * self.delta_m
+        self.m = torch.zeros_like(self.m)
+        self.v_diff = torch.zeros_like(self.v_diff)
+        self.v_dead = torch.zeros_like(self.v_dead)
+        self.v_measure = torch.zeros_like(self.v_measure)
+        self.integ = torch.zeros_like(self.integ)
+        self.integrator_m.reset()

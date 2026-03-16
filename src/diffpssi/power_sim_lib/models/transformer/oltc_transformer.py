@@ -44,7 +44,7 @@ class OLTC_Transformer(Transformer):
         Returns:
             None
         """
-        super().__init__(s_n_sys, param_dict, trans_model, parallel_sims)
+        super().__init__(s_n_sys, param_dict, parallel_sims, trans_model)
 
         self.sim = sim
 
@@ -64,15 +64,19 @@ class OLTC_Transformer(Transformer):
             )
         elif isinstance(oltc, object):
             self.oltc = oltc_controller
-        # elif oltc_controller is None:
-        #     self.oltc = None
-        #     _logger.warning(
-        #         "No OLTC controller defined for OLTC transformer {}".format(self.name)
-        #     )
+        elif oltc_controller is None:
+            self.oltc = None
+            warning = (
+                f"No OLTC controller defined for OLTC transformer {self.name}. "
+                "Please provide a valid controller by adding it after initialization.."
+            )
+            _logger.warning(warning)
 
         # get the initial state of the OLTC controller
         self.u_l = self.oltc.u_l
-        self.u = self.u_l  # * torch.exp(1j * (self.theta / 180) * torch.pi)
+        self.u = self.u_l
+        # normally: self.u_l * torch.exp(1j * (self.theta / 180) * torch.pi)
+        # but somehow phase shifting not working in simulation
 
         self.parallel_sims = parallel_sims
 

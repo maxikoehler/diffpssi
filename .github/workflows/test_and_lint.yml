@@ -1,16 +1,19 @@
-name: Test Code
+name: Test and Lint Code
 
 on:
   push:
     branches:
-      - develop
-      - project-init
+      - main
+      - release/*
+      - development
       - feature/*
       - bugfix/*
       - hotfix/*
   pull_request:
     branches:
-      - develop
+      - main
+      - release/*
+      - development
 
 jobs:
   pre-commit-and-test:

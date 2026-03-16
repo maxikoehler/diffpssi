@@ -6,8 +6,10 @@ import time
 
 import torch
 from matplotlib import pyplot as plt
+from tqdm import tqdm
 
 from diffpssi.optimization_lib.optimizers import CustomBFGSREALOptimizer
+from diffpssi.tools import set_matplot_settings
 
 # currently only bfgs is supported, as it works best by far
 optimizer_dict = {"bfgs": CustomBFGSREALOptimizer}
@@ -30,6 +32,7 @@ class PowerSystemOptimization:
         normalize_loss=True,
         loss_function=None,
         loss_threshold=None,
+        verbose=False,
     ):
         """
         Initialize the PowerSystemOptimization class.
@@ -94,7 +97,8 @@ class PowerSystemOptimization:
                     for each batch element of the size (batch-size).
                 """
                 return torch.mean(
-                    torch.sum(torch.abs(target_data - sim_result), dim=2), axis=1
+                    torch.sum(torch.abs(target_data - sim_result), dim=2),
+                    axis=1,
                 )
 
             self.loss_function = default_loss_function
@@ -112,11 +116,13 @@ class PowerSystemOptimization:
             else:
                 print("Using target data to normalize loss function")
 
+        self.verbose = verbose
+
         # save plot settings for easier comparison
         self.x_lims = None
         self.y_lims = None
 
-    def plot_state(self, t, results, original_data, opt_step):
+    def plot_state(self, t, results, original_data, opt_step, **kwargs):
         """
         Plot the current best simulation result.
 
@@ -127,6 +133,7 @@ class PowerSystemOptimization:
             opt_step (int): Current optimization step.
         """
         # create as many subplots as we have signals to compare
+        set_matplot_settings(kwargs)
         plt.figure()
 
         # set figure size
@@ -148,7 +155,7 @@ class PowerSystemOptimization:
         plot_file = os.path.join(
             os.getcwd(), f"data/plots/optimization_step_{opt_step}.png"
         )
-        plt.savefig(plot_file)
+        # plt.savefig(plot_file)
 
         # get xlims and ylims of all subplots
         if not self.x_lims or not self.y_lims:
@@ -158,9 +165,9 @@ class PowerSystemOptimization:
                 self.x_lims.append(ax.get_xlim())
                 self.y_lims.append(ax.get_ylim())
 
-        plt.close()
+        plt.show()
 
-    def run(self, max_steps=100):
+    def run(self, max_steps=100, plot_args=None):
         """
         Run the configured optimization procedure.
 
@@ -183,8 +190,9 @@ class PowerSystemOptimization:
         results = None  # the simulation results
         t = None  # the timesteps
         opt_step = None  # the current optimization step
+        losses = []  # list to store the losses for each optimization step
 
-        for opt_step in range(max_steps):
+        for opt_step in tqdm(range(max_steps)):
             # opt_step_start = time.time()
             # set the gradients to zero in order to accumulate the
             self.optimizer.zero_grad()
@@ -222,14 +230,18 @@ class PowerSystemOptimization:
 
             # take the minimum loss for further analysis
             min_loss_val, min_loss_idx = torch.nan_to_num(loss, 100000).min(dim=0)
+            losses.append(float(min_loss_val.detach().cpu().numpy()))
 
             # print the minimum loss and the corresponding idx
-            print(
-                f"Step: {opt_step}, Min. Loss Batch: {int(min_loss_idx)},"
-                f" Min. Loss: {float(min_loss_val)}"
-            )
+            if self.verbose:
+                print(
+                    f"Step: {opt_step}, Min. Loss Batch: {int(min_loss_idx)},"
+                    f" Min. Loss: {float(min_loss_val)}"
+                )
 
             # calculate the gradients for the loss
+            # Detach min_loss_val to avoid keeping the graph alive for logging
+            min_loss_val_detached = min_loss_val.detach()
             loss.sum().backward()
 
             # print the current best batch of parameters by comprehending them in a list
@@ -237,32 +249,37 @@ class PowerSystemOptimization:
                 p[min_loss_idx].detach()
                 for p in self.optimizer.param_groups[0]["params"]
             ]
-
             params_str = ", ".join(
                 f"{self.param_names[i]}: {float(print_list[i].data.real):.3f}"
                 for i in range(len(print_list))
             )
-            print(f"Current Best Params: {params_str}")
+            if self.verbose:
+                print(f"Optimized Parameters: {params_str}")
 
-            if self.params_original is not None:
-                rel_errs = [
-                    (float(print_list[i].data.real) - self.params_original[i])
-                    / self.params_original[i]
-                    * 100
-                    for i in range(len(print_list))
-                ]
-                rel_errs_str = ", ".join(
-                    f"{self.param_names[i]}: {rel_errs[i]:.2f}%"
-                    for i in range(len(print_list))
-                )
-                print(f"Relative Errors in Percent: {rel_errs_str}")
-
-            print(
-                "---------------------------------------------------------------------------------"
+            rel_errs = [
+                (float(print_list[i].data.real) - self.params_original[i])
+                / self.params_original[i]
+                * 100
+                for i in range(len(print_list))
+            ]
+            rel_errs_str = ", ".join(
+                f"{self.param_names[i]}: {rel_errs[i]:.2f}%"
+                for i in range(len(print_list))
             )
+            if self.params_original is not None:
+                if self.verbose:
+                    print(f"Relative Errors in Percent: {rel_errs_str}")
 
-            if min_loss_val < self.loss_threshold:
-                print("Loss threshold reached. Optimization stopped.")
+            if self.verbose:
+                print(
+                    "---------------------------------------------------------------------------------"
+                )
+            if min_loss_val_detached < self.loss_threshold:
+                if self.verbose:
+                    print(
+                        f"Stopping optimization as loss threshold "
+                        f"{self.loss_threshold} reached with loss {min_loss_val_detached}"
+                    )
                 break
 
             # perform the optimization step in order to adapt the parameters using the gradients
@@ -271,16 +288,29 @@ class PowerSystemOptimization:
             if self.enable_plots:
                 plt_original_data = self.target_data[min_loss_idx].detach().numpy()
                 plt_results = results[min_loss_idx].detach().numpy()
-                self.plot_state(t, plt_results, plt_original_data, opt_step)
+                if plot_args is None:
+                    plot_args = {}
+                self.plot_state(
+                    t, plt_results, plt_original_data, opt_step, **plot_args
+                )
 
             self.sim.reset()
 
-            if self.last_min_loss and self.last_min_loss < min_loss_val:
+            if self.last_min_loss and self.last_min_loss < min_loss_val_detached:
                 self.optimizer.decrease_step_size()
 
-            self.last_min_loss = min_loss_val
+            self.last_min_loss = min_loss_val_detached
 
         print(f"Optimization finished in {time.time() - opt_start_time:.2f} seconds")
-        plt_original_data = self.target_data[min_loss_idx].detach().numpy()
-        plt_results = results[min_loss_idx].detach().numpy()
-        self.plot_state(t, plt_results, plt_original_data, opt_step)
+
+        if self.enable_plots:
+            plt_original_data = self.target_data[min_loss_idx].detach().numpy()
+            plt_results = results[min_loss_idx].detach().numpy()
+            self.plot_state(t, plt_results, plt_original_data, opt_step)
+
+        opt_params_dict = {
+            self.param_names[i]: float(print_list[i].detach().cpu().numpy().real)
+            for i in range(len(print_list))
+        }
+
+        return results[min_loss_idx].detach().numpy(), opt_params_dict, losses

@@ -1,0 +1,103 @@
+site_name: diffpssi
+site_description: Documentation for the diffpssi project
+site_author: Maximilian Köhler
+repo_url: https://github.com/maxikoehler/diffpssi
+
+nav:
+  - Home: 
+    - index.md 
+    - Installation: install.md
+    - Contributing: contr.md
+  - API:
+    - Idea and Structure: api/general_idea.md
+    # - Usage: 
+    #   - Defining Grids: api/defining_grids.md
+    #   - Defining Simulations: api/defining_simulations.md
+    #   - Setting up Optimizations: api/setting_up_optimizations.md
+    #   - Analyzing Results: api/analyzing_results.md
+  - Reference:
+    - Components:
+      - Transformers: reference/transformers.md
+      # - Loads and Shunts: reference/loads_shunts.md
+      # - Lines and Busses: reference/lines_busses.md
+      # - Synchronous Generators: reference/synchronous_generators.md
+      # - Inverters: reference/inverters.md
+      # - Static Models: reference/static_models.md
+      # - Blocks: reference/blocks.md
+    # - Simulation: reference/simulation_lib.md
+    # - Optimization: reference/optimization_lib.md
+    - Controller: 
+      - OLTC Voltage Controller: reference/oltc_controller.md
+      - General Controller Blocks: reference/controller_blocks.md
+    - Voltage Stability: reference/voltage_stability.md
+    - Grid Library: reference/grid_library.md
+    - Tools: reference/tools.md
+  - Changelog: 
+    - v0: changes_0.md
+
+theme:
+  name: material
+  features:
+    - navigation.instant
+    - navigation.tabs
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      media: "(prefers-color-scheme: light)"
+      toggle:
+        icon: material/toggle-switch
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      media: "(prefers-color-scheme: dark)"
+      toggle:
+        icon: material/toggle-switch-off
+        name: Switch to light mode
+
+plugins:
+  - search
+  # Mermaid diagrams (client-side rendering)
+  - mermaid2
+  - mkdocstrings
+        # handlers:
+        # python:
+        #   # Render Google-style docstrings
+        #   inventories: google
+
+markdown_extensions:
+  - admonition
+  - markdown_include.include:
+      base_path: docs
+  - toc:
+      permalink: true
+  - codehilite
+  - attr_list
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.arithmatex:
+      # generic enables TeX delimiters like $...$ and $$...$$
+      generic: true
+  - pymdownx.magiclink
+  - pymdownx.betterem
+
+extra_css:
+  # KaTeX stylesheet (CDN). Optional: lock to a specific version if desired.
+  - https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.css
+
+extra_javascript:
+  # Mermaid (used by mermaid2 plugin or for manual client-side renders)
+  - https://unpkg.com/mermaid@10/dist/mermaid.min.js
+  - ./js/mathjax.js
+  - https://polyfill.io/v3/polyfill.min.js?features=es6
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+
+# Optional: configuration hints for mermaid or math; some plugins handle init automatically.
+extra:
+  mermaid:
+    # Version hint only; the mermaid2 plugin or the included script above does the actual load.
+    version: 10

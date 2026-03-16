@@ -83,9 +83,16 @@ class CustomBFGSREALOptimizer(torch.optim.Optimizer):
             None
         """
         # 1.: get the gradients from the "Backpropagation" step
-        grads = torch.stack(
-            [p.grad.real for p in self.param_groups[0]["params"]], dim=1
-        )
+        grads_list = []
+        for p in self.param_groups[0]["params"]:
+            if p.grad is None:
+                raise RuntimeError(
+                    "Gradient for an optimizable parameter is None. "
+                    "Ensure that `loss.backward()` has been called and that all parameters "
+                    "in `params_optimizable` actually affect the loss."
+                )
+            grads_list.append(p.grad.real)
+        grads = torch.stack(grads_list, dim=1)
 
         if self.first_step:
             # ensure sufficiently large first step by initializing the hessian

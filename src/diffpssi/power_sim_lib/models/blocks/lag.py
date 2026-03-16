@@ -42,7 +42,7 @@ class Lag(Block):
 
         Returns: A tensor containing the derivatives of the state variables.
         """
-        dx1 = -self.kd * self.state_1 + self.ki * self.input
+        dx1 = -self.kd * (self.state_1 - 1) + self.ki * self.input
         # noinspection PyTypeChecker
         dx1 = torch.where(
             torch.logical_or(
@@ -101,10 +101,35 @@ class Lag(Block):
         Args:
             parallel_sims (int): Number of parallel simulations.
         """
-        self.input = torch.ones((parallel_sims, 1), dtype=torch.float64) * self.input
-        self.state_1 = (
-            torch.ones((parallel_sims, 1), dtype=torch.float64) * self.state_1
-        )
+        # target_shape = (parallel_sims, 1)
+
+        # def expand_param_inplace(param, needs_grad=False):
+        #     if hasattr(param, 'shape') and param.shape == target_shape:
+        #         return param
+        #     val = param.detach() if hasattr(param, 'detach') else param
+        #     if needs_grad:
+        #         expanded = val.expand(target_shape).clone()
+        #         expanded.requires_grad_(True)
+        #         return expanded
+        #     else:
+        #         return torch.ones(target_shape, dtype=torch.float64) * val
+
+        # ki_needs_grad = hasattr(self.ki, 'requires_grad') and self.ki.requires_grad
+        # kd_needs_grad = hasattr(self.kd, 'requires_grad') and self.kd.requires_grad
+
+        # if not (hasattr(self.input, 'shape') and self.input.shape == target_shape):
+        #     self.input = expand_param_inplace(self.input, False)
+        # if not (hasattr(self.state_1, 'shape') and self.state_1.shape == target_shape):
+        #     self.state_1 = expand_param_inplace(self.state_1, False)
+        # if not (hasattr(self.ki, 'shape') and self.ki.shape == target_shape):
+        #     self.ki = expand_param_inplace(self.ki, ki_needs_grad)
+        # if not (hasattr(self.kd, 'shape') and self.kd.shape == target_shape):
+        #     self.kd = expand_param_inplace(self.kd, kd_needs_grad)
+        # if not (hasattr(self.lim_min, 'shape') and self.lim_min.shape == target_shape):
+        #     self.lim_min = expand_param_inplace(self.lim_min, False)
+        # if not (hasattr(self.lim_max, 'shape') and self.lim_max.shape == target_shape):
+        #     self.lim_max = expand_param_inplace(self.lim_max, False)
+
         self.ki = torch.ones((parallel_sims, 1), dtype=torch.float64) * self.ki
         self.kd = torch.ones((parallel_sims, 1), dtype=torch.float64) * self.kd
         self.lim_min = (
@@ -112,6 +137,10 @@ class Lag(Block):
         )
         self.lim_max = (
             torch.ones((parallel_sims, 1), dtype=torch.float64) * self.lim_max
+        )
+        self.input = torch.ones((parallel_sims, 1), dtype=torch.float64) * self.input
+        self.state_1 = (
+            torch.ones((parallel_sims, 1), dtype=torch.float64) * self.state_1
         )
 
     def initialize(self, out_wish):
@@ -122,3 +151,11 @@ class Lag(Block):
 
         Returns: The desired input to the model.
         """
+        self.out_wish = out_wish
+        self.state_1 = out_wish
+        return out_wish
+
+    def reset(self):
+        """Reset the internal state of the PT1Limited model."""
+        self.input = torch.zeros_like(self.input)
+        self.state_1 = self.out_wish * torch.ones_like(self.state_1)

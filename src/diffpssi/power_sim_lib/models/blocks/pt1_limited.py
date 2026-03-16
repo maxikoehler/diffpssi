@@ -1,5 +1,7 @@
 """Models a PT1 limited block."""
 
+import numpy as np
+
 from diffpssi.power_sim_lib.backend import *
 from diffpssi.power_sim_lib.models.blocks.blocks_interface import Block
 
@@ -135,7 +137,23 @@ class PT1Limited(Block):
             The desired input to the model.
         """
         # noinspection PyTypeChecker
-        self.state_1 = torch.minimum(
-            torch.maximum(out_wish.real, self.lim_min), self.lim_max
+        # if not isinstance(out_wish, torch.Tensor):
+        #     out_wish = torch.ones_like(self.lim_min) * out_wish
+        self.out_wish = np.minimum(
+            np.maximum(out_wish.real, self.lim_min), self.lim_max
         )
+
+        self.state_1 = self.out_wish
         return out_wish / self.gain_pt1
+
+    def reset(self):
+        """
+        Reset the internal state of the PT1Limited model to zero.
+
+        Note: gain_pt1 and t_pt1 are NOT reset as they may be optimizable parameters
+        that need to maintain their gradient connection.
+        """
+        self.state_1 = self.out_wish * torch.ones_like(self.state_1)
+        self.input = torch.zeros_like(self.input)
+        # self.lim_max and self.lim_min are NOT reset
+        # self.gain_pt1 and self.t_pt1 are NOT reset to preserve gradient flow

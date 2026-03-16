@@ -4,8 +4,6 @@ These are differing on the reference of the models and how the states and differ
 Currently only a simple Euler integrator is implemented.
 """
 
-# from diffpssi.power_sim_lib.backend import *
-
 
 class Euler:
     """Implement the Euler method for numerical integration in power system simulations.

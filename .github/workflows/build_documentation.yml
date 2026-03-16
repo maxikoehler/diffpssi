@@ -1,14 +1,18 @@
-# name: test-code-and-build
+name: Build Documentation
 
 on:
   push:
     branches:
       - main
       - release/*
+      - development
+      - doc/*
   pull_request:
     branches:
       - main
       - release/*
+      - development
+      - doc/*
 
 jobs:
   pre-commit-and-test:

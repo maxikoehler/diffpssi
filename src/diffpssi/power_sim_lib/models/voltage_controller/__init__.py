@@ -1,6 +1,9 @@
 """Initialize all relevant stuff for the voltage controller models."""
 
 from diffpssi.power_sim_lib.backend import *
+from diffpssi.power_sim_lib.models.voltage_controller.fsm_continuous import (
+    FSM_Continuous_Milano,
+)
 from diffpssi.power_sim_lib.models.voltage_controller.fsm_discrete import FSM_Discrete
 from diffpssi.power_sim_lib.models.voltage_controller.fsm_discrete_2 import (
     FSM_Discrete_2,
@@ -8,8 +11,13 @@ from diffpssi.power_sim_lib.models.voltage_controller.fsm_discrete_2 import (
 from diffpssi.power_sim_lib.models.voltage_controller.fsm_discrete_tap_skip import (
     FSM_Discrete_Tap_Skip,
 )
+from diffpssi.power_sim_lib.models.voltage_controller.fsm_only_discrete import (
+    FSM_Only_Discrete,
+)
 from diffpssi.power_sim_lib.models.voltage_controller.oltc_continuous import (
     OLTC_Continuous,
+    OLTC_Continuous_Milano,
+    OLTC_Continuous_PI,
 )
 from diffpssi.power_sim_lib.models.voltage_controller.oltc_discrete import OLTC_Discrete
 from diffpssi.power_sim_lib.models.voltage_controller.voltage_controller_interface import (
@@ -21,6 +29,7 @@ voltage_control_dict = {
     "oltc": OLTC_Discrete,
     "fsm": FSM_Discrete,
     "fsm_2": FSM_Discrete_2,
+    "fsm_only_d": FSM_Only_Discrete,
     "fsm_tap": FSM_Discrete_Tap_Skip,
     "oltc_c": OLTC_Continuous,
 }

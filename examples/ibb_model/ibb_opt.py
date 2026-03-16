@@ -1,8 +1,10 @@
-"""This example shows how to use the PowerSystemOptimization class to optimize the parameters of the IBB model."""
+"""This example shows how to use the PowerSystemOptimization class.
+
+Main focus is to optimize the parameters of the IBB model."""
 
 import os
 
-import examples.models.ibb_model.ibb_model as mdl
+import examples.ibb_model.ibb_model as mdl
 import numpy as np
 import torch
 

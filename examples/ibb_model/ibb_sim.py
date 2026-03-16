@@ -53,7 +53,7 @@ def main():
 
     plt.close()
 
-    np.save("./data/original_data.npy", recorder[0].real)
+    # np.save("./data/original_data.npy", recorder[0].real)
 
 
 if __name__ == "__main__":

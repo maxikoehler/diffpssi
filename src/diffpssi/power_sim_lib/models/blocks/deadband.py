@@ -32,10 +32,11 @@ class DeadBand(object):
             input_var (torch.Tensor): The current input to the model.
         Returns: The output of the model.
         """
-        if input_var >= self.threshold or input_var <= -self.threshold:
-            return input_var
-
-        return torch.zeros_like(input_var)
+        return torch.where(
+            torch.abs(input_var) >= self.threshold,
+            input_var,
+            torch.zeros_like(input_var),
+        )
 
     def enable_parallel_simulation(self, parallel_sims):
         """Enable parallel simulations by transforming the model's parameters into tensors.

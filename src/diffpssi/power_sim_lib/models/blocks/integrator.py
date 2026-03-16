@@ -82,8 +82,12 @@ class Integrator(Block):
         self.input = self.k_i * input_var
         output = self.state_1
 
-        if self.limiter is not None and self.state_1 >= self.limiter:
-            self.state_1 = torch.zeros(self.state_1.shape)
+        if self.limiter is not None:
+            torch.where(
+                self.state_1 >= self.limiter,
+                self.limiter,
+                self.state_1,
+            )
 
         return output
 
@@ -111,6 +115,10 @@ class Integrator(Block):
         )
 
     def reset(self):
-        """Reset the state vector of the I controller to zero."""
-        self.state_1 = torch.zeros(self.state_1.shape)
-        self.input = torch.zeros(self.input.shape)
+        """Reset the TestBench to its initial state.
+
+        Returns:
+            None
+        """
+        self.state_1 = torch.zeros_like(self.state_1)
+        self.input = torch.zeros_like(self.input)
